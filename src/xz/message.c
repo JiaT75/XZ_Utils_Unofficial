@@ -1013,13 +1013,15 @@ message_filters_to_str(char buf[FILTERS_STR_SIZE],
 		case LZMA_FILTER_POWERPC:
 		case LZMA_FILTER_IA64:
 		case LZMA_FILTER_ARM:
+               case LZMA_FILTER_ARM64:
 		case LZMA_FILTER_ARMTHUMB:
 		case LZMA_FILTER_SPARC: {
-			static const char bcj_names[][9] = {
+                       static const char bcj_names[][10] = {
 				"x86",
 				"powerpc",
 				"ia64",
 				"arm",
+                               "arm64",
 				"armthumb",
 				"sparc",
 			};
@@ -1220,6 +1222,7 @@ message_help(bool long_help)
 "  --powerpc[=OPTS]    PowerPC BCJ filter (big endian only)\n"
 "  --ia64[=OPTS]       IA-64 (Itanium) BCJ filter\n"
 "  --arm[=OPTS]        ARM BCJ filter (little endian only)\n"
+"  --arm64[=OPTS]      ARM64 BCJ filter (little endian only)\n"
 "  --armthumb[=OPTS]   ARM-Thumb BCJ filter (little endian only)\n"
 "  --sparc[=OPTS]      SPARC BCJ filter\n"
 "                      Valid OPTS for all BCJ filters:\n"

@@ -38,6 +38,10 @@ if COND_FILTER_ARM
 liblzma_la_SOURCES += simple/arm.c
 endif
 
+if COND_FILTER_ARM64
+liblzma_la_SOURCES += simple/arm64.c
+endif
+
 if COND_FILTER_ARMTHUMB
 liblzma_la_SOURCES += simple/armthumb.c
 endif
