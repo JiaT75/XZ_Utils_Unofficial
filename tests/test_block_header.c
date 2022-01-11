@@ -10,7 +10,9 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "tests.h"
+#include "liblzma_tests.h"
+#include "tuklib_integer.h"
+#include "test_utils.h"
 
 
 static uint8_t buf[LZMA_BLOCK_HEADER_SIZE_MAX];
@@ -80,7 +82,7 @@ static lzma_filter filters_five[6] = {
 static void
 code(void)
 {
-	expect(lzma_block_header_encode(&known_options, buf) == LZMA_OK);
+	assert_int_equal(lzma_block_header_encode(&known_options, buf), LZMA_OK);
 
 	lzma_filter filters[LZMA_FILTERS_MAX + 1];
 	memcrap(filters, sizeof(filters));
@@ -89,17 +91,14 @@ code(void)
 	decoded_options.header_size = known_options.header_size;
 	decoded_options.check = known_options.check;
 	decoded_options.filters = filters;
-	expect(lzma_block_header_decode(&decoded_options, NULL, buf)
-			== LZMA_OK);
+	assert_int_equal(lzma_block_header_decode(&decoded_options, NULL, buf), LZMA_OK);
 
-	expect(known_options.compressed_size
-			== decoded_options.compressed_size);
-	expect(known_options.uncompressed_size
-			== decoded_options.uncompressed_size);
+	assert_int_equal(known_options.compressed_size, decoded_options.compressed_size);
+	assert_int_equal(known_options.uncompressed_size, decoded_options.uncompressed_size);
 
 	for (size_t i = 0; known_options.filters[i].id
 			!= LZMA_VLI_UNKNOWN; ++i)
-		expect(known_options.filters[i].id == filters[i].id);
+		assert_int_equal(known_options.filters[i].id, filters[i].id);
 
 	for (size_t i = 0; i < LZMA_FILTERS_MAX; ++i)
 		free(decoded_options.filters[i].options);
@@ -116,39 +115,39 @@ test1(void)
 		.filters = NULL,
 	};
 
-	expect(lzma_block_header_size(&known_options) == LZMA_PROG_ERROR);
+	assert_int_equal(lzma_block_header_size(&known_options), LZMA_PROG_ERROR);
 
 	known_options.filters = filters_none;
-	expect(lzma_block_header_size(&known_options) == LZMA_PROG_ERROR);
+	assert_int_equal(lzma_block_header_size(&known_options), LZMA_PROG_ERROR);
 
 	known_options.filters = filters_five;
-	expect(lzma_block_header_size(&known_options) == LZMA_PROG_ERROR);
+	assert_int_equal(lzma_block_header_size(&known_options), LZMA_PROG_ERROR);
 
 	known_options.filters = filters_one;
-	expect(lzma_block_header_size(&known_options) == LZMA_OK);
+	assert_int_equal(lzma_block_header_size(&known_options), LZMA_OK);
 
 	// Some invalid value, which gets ignored.
 	known_options.check = (lzma_check)(99);
-	expect(lzma_block_header_size(&known_options) == LZMA_OK);
+	assert_int_equal(lzma_block_header_size(&known_options), LZMA_OK);
 
 	known_options.compressed_size = 5;
-	expect(lzma_block_header_size(&known_options) == LZMA_OK);
+	assert_int_equal(lzma_block_header_size(&known_options), LZMA_OK);
 
 	known_options.compressed_size = 0; // Cannot be zero.
-	expect(lzma_block_header_size(&known_options) == LZMA_PROG_ERROR);
+	assert_int_equal(lzma_block_header_size(&known_options), LZMA_PROG_ERROR);
 
 	// LZMA_VLI_MAX is too big to keep the total size of the Block
 	// a valid VLI, but lzma_block_header_size() is not meant
 	// to validate it. (lzma_block_header_encode() must validate it.)
 	known_options.compressed_size = LZMA_VLI_MAX;
-	expect(lzma_block_header_size(&known_options) == LZMA_OK);
+	assert_int_equal(lzma_block_header_size(&known_options), LZMA_OK);
 
 	known_options.compressed_size = LZMA_VLI_UNKNOWN;
 	known_options.uncompressed_size = 0;
-	expect(lzma_block_header_size(&known_options) == LZMA_OK);
+	assert_int_equal(lzma_block_header_size(&known_options), LZMA_OK);
 
 	known_options.uncompressed_size = LZMA_VLI_MAX + 1;
-	expect(lzma_block_header_size(&known_options) == LZMA_PROG_ERROR);
+	assert_int_equal(lzma_block_header_size(&known_options), LZMA_PROG_ERROR);
 }
 
 
@@ -162,12 +161,12 @@ test2(void)
 		.filters = filters_four,
 	};
 
-	expect(lzma_block_header_size(&known_options) == LZMA_OK);
+	assert_int_equal(lzma_block_header_size(&known_options), LZMA_OK);
 	code();
 
 	known_options.compressed_size = 123456;
 	known_options.uncompressed_size = 234567;
-	expect(lzma_block_header_size(&known_options) == LZMA_OK);
+	assert_int_equal(lzma_block_header_size(&known_options), LZMA_OK);
 	code();
 
 	// We can make the sizes smaller while keeping the header size
@@ -188,9 +187,9 @@ test3(void)
 		.filters = filters_one,
 	};
 
-	expect(lzma_block_header_size(&known_options) == LZMA_OK);
+	assert_int_equal(lzma_block_header_size(&known_options), LZMA_OK);
 	known_options.header_size += 4;
-	expect(lzma_block_header_encode(&known_options, buf) == LZMA_OK);
+	assert_int_equal(lzma_block_header_encode(&known_options, buf), LZMA_OK);
 
 	lzma_filter filters[LZMA_FILTERS_MAX + 1];
 	decoded_options.header_size = known_options.header_size;
@@ -199,14 +198,12 @@ test3(void)
 
 	// Wrong size
 	++buf[0];
-	expect(lzma_block_header_decode(&decoded_options, NULL, buf)
-			== LZMA_PROG_ERROR);
+	assert_int_equal(lzma_block_header_decode(&decoded_options, NULL, buf), LZMA_PROG_ERROR);
 	--buf[0];
 
 	// Wrong CRC32
 	buf[known_options.header_size - 1] ^= 1;
-	expect(lzma_block_header_decode(&decoded_options, NULL, buf)
-			== LZMA_DATA_ERROR);
+	assert_int_equal(lzma_block_header_decode(&decoded_options, NULL, buf), LZMA_DATA_ERROR);
 	buf[known_options.header_size - 1] ^= 1;
 
 	// Unsupported filter
@@ -214,28 +211,25 @@ test3(void)
 	buf[2] ^= 0x1F;
 	write32le(buf + known_options.header_size - 4,
 			lzma_crc32(buf, known_options.header_size - 4, 0));
-	expect(lzma_block_header_decode(&decoded_options, NULL, buf)
-			== LZMA_OPTIONS_ERROR);
+	assert_int_equal(lzma_block_header_decode(&decoded_options, NULL, buf), LZMA_OPTIONS_ERROR);
 	buf[2] ^= 0x1F;
 
 	// Non-nul Padding
 	buf[known_options.header_size - 4 - 1] ^= 1;
 	write32le(buf + known_options.header_size - 4,
 			lzma_crc32(buf, known_options.header_size - 4, 0));
-	expect(lzma_block_header_decode(&decoded_options, NULL, buf)
-			== LZMA_OPTIONS_ERROR);
+	assert_int_equal(lzma_block_header_decode(&decoded_options, NULL, buf), LZMA_OPTIONS_ERROR);
 	buf[known_options.header_size - 4 - 1] ^= 1;
 }
 
 
-int
-main(void)
+void
+test_block_header_coders(void)
 {
-	succeed(lzma_lzma_preset(&opt_lzma, 1));
-
-	test1();
-	test2();
-	test3();
-
-	return 0;
+	test_fixture_start();
+	assert_false(lzma_lzma_preset(&opt_lzma, 1));
+	run_test(test1);
+	run_test(test2);
+	run_test(test3);
+	test_fixture_end();
 }

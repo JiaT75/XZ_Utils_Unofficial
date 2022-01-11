@@ -669,6 +669,9 @@ AC_CHECK_HEADERS([fcntl.h limits.h sys/time.h],
 # This allows the use of the intrinsic functions if they are available.
 AC_CHECK_HEADERS([immintrin.h])
 
+# This allows use of globbing and exit status checking in the test framework
+AC_CHECK_HEADERS([glob.h sys/wait.h])
+
 
 ###############################################################################
 # Checks for typedefs, structures, and compiler characteristics.

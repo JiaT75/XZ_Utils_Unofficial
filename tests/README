@@ -1,0 +1,111 @@
+
+Testing Framework
+=================
+
+    0. Overview
+    1. STest
+       1.1. STest Overview
+       1.2. Using STest
+       1.3. STest Asserts
+    2. Adding a New Test or Test Fixture
+
+
+0. Overview
+-----------
+
+    The testing framework is centered around two binaries: liblzma_tests
+    and xz_tests. liblzma_tests covers the liblzma shared library and
+    xz_tests covers the command-line tools. The framework is built on top
+    of an open source C testing framework called STest, originally written
+	as Seatest by Keith Nicholas, but later forked by Jia Tan. The fork
+	addresses only a few small issues, so the majority of the code remains
+	from the original.
+
+    Currently, the liblzma_tests and xz_tests binaries must be run from
+    this directory to function correctly. Alternatively, make check
+    can be run from the root directory.
+
+
+1. STest
+----------
+
+1.1 STest Overview
+
+    STest is a simple unit testing framework for C based on the xUnit
+	style of unit testing. It is designed to be portable, lightweight,
+	and easy to use. Only two files, stest.c and stest.h, are
+	required to use STest.
+
+1.2 Using STest
+
+    Using STest is as simple as including the header file "stest.h".
+	This includes many assert statements, in addition to the fixture
+	functions. The main function for a test suite should look similar to
+	this:
+
+        int
+		main(int argc, char **argv)
+        {
+            return stest_testrunner(argc, argv, run_all_tests, 0, 0);
+        }
+
+    The stest_testrunner function will return 1 if any test fails and 0 if
+	all tests pass, so STest is compatible with autotools and CMake
+	testing.
+
+    Each group of tests is called a fixture. The fixture needs to be
+	surrounded with test_fixture_start() and test_fixture_end() in order
+	to log the successes and failures correctly. For example:
+
+        void test_fixture(void)
+        {
+            test_fixture_start();
+            run_test(test_func_1);
+            run_test(test_func_2);
+            run_test(test_func_3);
+            test_fixture_end();
+        }
+
+    The individual tests should be functions that take no arguments and
+	return void. These functions should use STest's asserts to report
+	all successful or failing tests.
+
+1.3 STest Asserts
+
+    STest implements many useful assert functions to test values and
+	record the results. Here are all of the supported asserts:
+
+        assert_true
+        assert_false
+        assert_int_equal
+        assert_ulong_equal
+        assert_string_equal
+        assert_n_array_equal
+        assert_bit_set
+        assert_bit_not_set
+        assert_bit_mask_matches
+        assert_fail
+        assert_float_equal
+        assert_double_equal
+        assert_string_contains
+        assert_string_doesnt_contain
+        assert_string_starts_with
+        assert_string_ends_with
+
+
+2. Adding a New Test or Test Fixture
+------------------------------------
+
+    Adding a new test to an existing fixture is as simple as creating
+    a new function, and then calling that function from the fixture
+    function.
+
+    Adding a new test fixture is a 5 step process:
+
+        1. Create a new .c file in this directory
+        2. Create your fixture function along with all of your tests
+        3. Add your fixture function to either liblzma_tests.h or
+			xz_tests.h
+        4. Add your fixture file to the Makefile.am under the
+			liblzma_tests_SOURCES or the xz_tests_SOURCES variable
+        5. Call your fixture function in liblzma_tests.c or xz_tests.c

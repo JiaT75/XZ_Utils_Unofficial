@@ -10,8 +10,9 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "tests.h"
-
+#include "liblzma_tests.h"
+#include "test_utils.h"
+#include <stdbool.h>
 
 static uint8_t buffer[4096];
 static lzma_filter known_flags;
@@ -79,27 +80,27 @@ test_bcj(void)
 	known_flags.id = LZMA_FILTER_X86;
 	known_flags.options = NULL;
 
-	expect(!encode(2));
-	expect(!decode(2));
-	expect(decoded_flags.options == NULL);
+	assert_true(!encode(2));
+	assert_true(!decode(2));
+	assert_true(decoded_flags.options == NULL);
 
 	// Test 2
 	lzma_options_bcj options;
 	options.start_offset = 0;
 	known_flags.options = &options;
-	expect(!encode(2));
-	expect(!decode(2));
-	expect(decoded_flags.options == NULL);
+	assert_true(!encode(2));
+	assert_true(!decode(2));
+	assert_true(decoded_flags.options == NULL);
 
 	// Test 3
 	options.start_offset = 123456;
 	known_flags.options = &options;
-	expect(!encode(6));
-	expect(!decode(6));
-	expect(decoded_flags.options != NULL);
+	assert_true(!encode(6));
+	assert_true(!decode(6));
+	assert_true(decoded_flags.options != NULL);
 
 	lzma_options_bcj *decoded = decoded_flags.options;
-	expect(decoded->start_offset == options.start_offset);
+	assert_true(decoded->start_offset == options.start_offset);
 
 	free(decoded);
 }
@@ -113,7 +114,7 @@ test_delta(void)
 	// Test 1
 	known_flags.id = LZMA_FILTER_DELTA;
 	known_flags.options = NULL;
-	expect(encode(99));
+	assert_true(encode(99));
 
 	// Test 2
 	lzma_options_delta options = {
@@ -121,29 +122,29 @@ test_delta(void)
 		.dist = 0
 	};
 	known_flags.options = &options;
-	expect(encode(99));
+	assert_true(encode(99));
 
 	// Test 3
 	options.dist = LZMA_DELTA_DIST_MIN;
-	expect(!encode(3));
-	expect(!decode(3));
-	expect(((lzma_options_delta *)(decoded_flags.options))->dist
-			== options.dist);
+	assert_true(!encode(3));
+	assert_true(!decode(3));
+	assert_int_equal(((lzma_options_delta *)(decoded_flags.options))->dist
+			, options.dist);
 
 	free(decoded_flags.options);
 
 	// Test 4
 	options.dist = LZMA_DELTA_DIST_MAX;
-	expect(!encode(3));
-	expect(!decode(3));
-	expect(((lzma_options_delta *)(decoded_flags.options))->dist
-			== options.dist);
+	assert_true(!encode(3));
+	assert_true(!decode(3));
+	assert_int_equal(((lzma_options_delta *)(decoded_flags.options))->dist
+			, options.dist);
 
 	free(decoded_flags.options);
 
 	// Test 5
 	options.dist = LZMA_DELTA_DIST_MAX + 1;
-	expect(encode(99));
+	assert_true(encode(99));
 }
 #endif
 
@@ -239,20 +240,21 @@ test_lzma(void)
 #endif
 */
 
-int
-main(void)
+
+void
+test_filter_flags(void)
 {
+	test_fixture_start();
 #if defined(HAVE_ENCODER_X86) && defined(HAVE_DECODER_X86)
-	test_bcj();
+	run_test(test_bcj);
 #endif
 #if defined(HAVE_ENCODER_DELTA) && defined(HAVE_DECODER_DELTA)
-	test_delta();
+	run_test(test_delta);
 #endif
 // #ifdef HAVE_FILTER_LZMA
-// 	test_lzma();
+// 	run_test(test_lzma);
 // #endif
 
 	lzma_end(&strm);
-
-	return 0;
+	test_fixture_end();
 }

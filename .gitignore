@@ -46,13 +46,10 @@ build-aux/test-driver
 /tests/compress_generated_abc
 /tests/compress_generated_random
 /tests/compress_generated_text
-/tests/create_compress_files
-/tests/test_bcj_exact_size
-/tests/test_block_header
-/tests/test_check
-/tests/test_filter_flags
-/tests/test_index
-/tests/test_stream_flags
+/tests/tmp_compressed
+/tests/tmp_uncompressed
+/tests/xz_tests
+/tests/liblzma_tests
 /tests/xzgrep_test_1.xz
 /tests/xzgrep_test_2.xz
 /tests/xzgrep_test_output

@@ -1,0 +1,31 @@
+///////////////////////////////////////////////////////////////////////////////
+//
+/// \file       liblzma_tests.c
+/// \brief      Combines all tests for liblzma
+//
+//  Author:     Jia Tan
+//
+//  This file has been put into the public domain.
+//  You can do whatever you want with this file.
+//
+///////////////////////////////////////////////////////////////////////////////
+
+#include "liblzma_tests.h"
+
+
+static void
+all_tests(void)
+{
+	test_integrity_checks();
+	test_block_header_coders();
+	test_bcj_filter();
+	test_filter_flags();
+	test_lzma_index_structure();
+	test_stream_header_and_footer_coders();
+}
+
+int
+main(int argc, char **argv)
+{
+	return stest_testrunner(argc, argv, all_tests, NULL, NULL);
+}
