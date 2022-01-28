@@ -1,0 +1,25 @@
+# To use this config on your editor, follow the instructions at:
+# https://editorconfig.org/
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[**{.{c,h,S,map,sh,bash},Makefile*,configure.ac,po4a/update-po,src/scripts/{xzless,xzmore}.in}]
+indent_style = tab
+indent_size = 8
+
+[/src/scripts/{xzdiff,xzgrep}.in]
+indent_style = space
+indent_size = 2
+
+[{CMakeLists.txt,*.cmake}]
+indent_style = space
+indent_size = 4
+
+[{*.vcxproj,xz_win.sln}]
+charset = utf-8-bom
