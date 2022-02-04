@@ -56,8 +56,9 @@ typedef struct {
 	/**
 	 * \brief       Pointer to filter-specific options structure
 	 *
-	 * If the filter doesn't need options, set this to NULL. If id is
-	 * set to LZMA_VLI_UNKNOWN, options is ignored, and thus
+	 * If the filter doesn't need options, set this to NULL.
+	 * Currently, only the BCJ filters can have NULL options.
+	 * If id is set to LZMA_VLI_UNKNOWN, options is ignored, and thus
 	 * doesn't need be initialized.
 	 */
 	void *options;
@@ -68,8 +69,10 @@ typedef struct {
 /**
  * \brief       Test if the given Filter ID is supported for encoding
  *
- * Return true if the give Filter ID is supported for encoding by this
- * liblzma build. Otherwise false is returned.
+ * \param       id     lzma_vli id of the filter
+ *
+ * \return      Return true if the given Filter ID is supported for
+ *              encoding by this liblzma build. Otherwise false is returned.
  *
  * There is no way to list which filters are available in this particular
  * liblzma version and build. It would be useless, because the application
@@ -82,8 +85,11 @@ extern LZMA_API(lzma_bool) lzma_filter_encoder_is_supported(lzma_vli id)
 /**
  * \brief       Test if the given Filter ID is supported for decoding
  *
- * Return true if the give Filter ID is supported for decoding by this
- * liblzma build. Otherwise false is returned.
+ * \param       id     lzma_vli id of the filter
+ *
+ * \return      Return true if the give Filter ID is supported for
+ *              decoding by this liblzma build. Otherwise false
+ *              is returned.
  */
 extern LZMA_API(lzma_bool) lzma_filter_decoder_is_supported(lzma_vli id)
 		lzma_nothrow lzma_attr_const;
@@ -109,6 +115,11 @@ extern LZMA_API(lzma_bool) lzma_filter_decoder_is_supported(lzma_vli id)
  *
  * If an error occurs, memory possibly already allocated by this function
  * is always freed.
+ *
+ * \param       src    Array of filters to copy from terminated with
+ *                     .id == LZMA_VLI_UNKNOWN
+ * \param       dest   Array of fitlers to copy to, must have length
+ *                     greater than or equal to src
  *
  * \return      - LZMA_OK
  *              - LZMA_MEM_ERROR
@@ -189,6 +200,9 @@ extern LZMA_API(lzma_ret) lzma_raw_encoder(
  * The `action' with lzma_code() can be LZMA_RUN or LZMA_FINISH. Using
  * LZMA_FINISH is not required, it is supported just for convenience.
  *
+ * \param       strm    Pointer to properly prepared lzma_stream
+ * \param       filters Array of lzma_filter structures. The end of the
+ *                      array must be marked with .id = LZMA_VLI_UNKNOWN.
  * \return      - LZMA_OK
  *              - LZMA_MEM_ERROR
  *              - LZMA_OPTIONS_ERROR
@@ -208,7 +222,7 @@ extern LZMA_API(lzma_ret) lzma_raw_decoder(
  *  - After LZMA_FULL_FLUSH when using Stream encoder: Set a new filter
  *    chain, which will be used starting from the next Block.
  *
- *  - After LZMA_SYNC_FLUSH using Raw, Block, or Stream encoder: Change
+ *  - After LZMA_SYNC_FLUSH using Raw or Stream encoder: Change
  *    the filter-specific options in the middle of encoding. The actual
  *    filters in the chain (Filter IDs) cannot be changed. In the future,
  *    it might become possible to change the filter options without
@@ -216,8 +230,12 @@ extern LZMA_API(lzma_ret) lzma_raw_decoder(
  *
  * While rarely useful, this function may be called also when no data has
  * been compressed yet. In that case, this function will behave as if
- * LZMA_FULL_FLUSH (Stream encoder) or LZMA_SYNC_FLUSH (Raw or Block
+ * LZMA_FULL_FLUSH (Stream encoder) or LZMA_SYNC_FLUSH (Raw
  * encoder) had been used right before calling this function.
+ *
+ * \param       strm    Pointer to properly prepared lzma_stream
+ * \param       filters Array of lzma_filter structures. The end of the
+ *                      array must be marked with .id = LZMA_VLI_UNKNOWN.
  *
  * \return      - LZMA_OK
  *              - LZMA_MEM_ERROR
@@ -414,6 +432,15 @@ extern LZMA_API(lzma_ret) lzma_filter_flags_encode(const lzma_filter *filter,
  *
  * The decoded result is stored into *filter. The old value of
  * filter->options is not free()d.
+ *
+ * \param       filter      Destination for decoded result
+ * \param       allocator   Custom memory allocator used to allocate the
+ *                          options. Set to NULL to use the default malloc(),
+ *                          and in case of an error, also free().
+ * \param       in          Beginning of input buffer
+ * \param       in_pos      in[*in_pos] is the next read position. This
+ *                          is updated by the decoder
+ * \param       in_size     in[in_size] is the first byte to be read
  *
  * \return      - LZMA_OK
  *              - LZMA_OPTIONS_ERROR
