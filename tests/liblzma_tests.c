@@ -22,6 +22,7 @@ all_tests(void)
 	test_filter_flags();
 	test_lzma_index_structure();
 	test_stream_header_and_footer_coders();
+	test_lzma_properties();
 }
 
 int

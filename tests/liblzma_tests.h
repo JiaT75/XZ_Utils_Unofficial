@@ -22,5 +22,6 @@ void test_bcj_filter(void);
 void test_filter_flags(void);
 void test_lzma_index_structure(void);
 void test_stream_header_and_footer_coders(void);
+void test_lzma_properties(void);
 
 #endif
