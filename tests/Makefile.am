@@ -42,6 +42,8 @@ liblzma_tests_SOURCES = \
 	test_filter_flags.c \
 	test_index.c \
 	test_stream_flags.c \
+	test_lzma_filter_utils.c \
+	test_lzma_filters.c \
 	liblzma_tests.c
 
 xz_tests_SOURCES = \
