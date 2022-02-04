@@ -76,6 +76,12 @@ file_exists_and_can_execute(const char* path)
 	return access(path, X_OK) == 0;
 }
 
+bool
+file_exists_and_can_read(const char* path)
+{
+	return access(path, R_OK) == 0;
+}
+
 void
 glob_and_callback(const char* path, glob_callback callback)
 {
@@ -106,3 +112,45 @@ glob_and_callback(const char* path, glob_callback callback)
 #endif
 }
 
+// Path is the location to the file
+// Buffer will be allocated and must be freed by the caller
+// when they are done using the buffer
+size_t
+read_file_into_buffer(const char* path, uint8_t** buffer_ptr)
+{
+	size_t file_size = 0;
+	if(!file_exists_and_can_read(path)){
+		return file_size;
+	}
+
+	static size_t buffer_chunk_size = 4096;
+	uint8_t* buffer = (uint8_t*) malloc(buffer_chunk_size);
+	if(buffer == NULL){
+		return file_size;
+	}
+	int chunk_count = 1;
+
+	FILE* file = fopen(path, "r");
+	if(file == NULL){
+		return file_size;
+	}
+
+	while(!feof(file)){
+		size_t read = fread(buffer +
+				((chunk_count-1) * buffer_chunk_size),
+				1, buffer_chunk_size, file);
+		chunk_count++;
+		file_size += read;
+		//printf("chunk count %d file size %d\n", chunk_count, file_size);
+		if(read == buffer_chunk_size){
+			buffer = realloc(buffer,
+				 	buffer_chunk_size * chunk_count);
+			if(buffer == NULL){
+				return 0;
+			}
+		}
+	}
+
+	*buffer_ptr = buffer;
+	return file_size;
+}

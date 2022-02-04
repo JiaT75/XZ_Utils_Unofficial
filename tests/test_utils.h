@@ -15,6 +15,7 @@
 
 #include <stdbool.h>
 #include <string.h>
+#include <stdint.h>
 #include "config.h"
 
 #define memcrap(buf, size) memset(buf, 0xFD, size)
@@ -44,5 +45,7 @@ void glob_and_callback(const char* path, glob_callback callback);
 
 bool file_exists_and_can_execute(const char* path);
 void get_path_to_files(char* out_path);
+size_t read_file_into_buffer(const char* path, uint8_t** buffer_ptr);
+
 
 #endif

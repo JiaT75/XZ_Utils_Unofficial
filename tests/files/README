@@ -256,3 +256,20 @@
     the end of the file). The Check type is None to nullify certain
     simple size-based sanity checks in a Block decoder.
 
+3. lzma_filters Files
+
+    A subdirectory in this folder contains test files for liblzma API
+	functions defined in src/liblzma/api/lzma/filter.h. These files are
+	pre-generated in order to simplify and standardize the filter tests.
+
+	lzma_filters/lzma1_raw was created with the following command:
+	xz -zc --x86 --delta=dist=1 --lzma1=lc=0,pb=0,mode=fast,nice=32,\
+	depth=0,mf=hc3 --no-adjust --format=raw raw_original.txt > lzma1_raw
+
+	lzma_filters/lzma2_raw was created with the following command:
+	xz -zc --arm=start=10 --delta=dist=256 --lzma2=lc=4,pb=4,nice=273,\
+	depth=200,mf=hc4 --no-adjust --format=raw raw_original.txt > lzma2_raw
+
+	raw_original.txt is lorem ipsem text generated from
+	compress_genearted_text.
+
