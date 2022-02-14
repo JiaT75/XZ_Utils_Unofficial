@@ -16,6 +16,7 @@
 #include "lzma2_decoder.h"
 #include "simple_decoder.h"
 #include "delta_decoder.h"
+#include "lz_decoder.h"
 
 
 typedef struct {
@@ -181,4 +182,25 @@ lzma_properties_decode(lzma_filter *filter, const lzma_allocator *allocator,
 
 	return fd->props_decode(
 			&filter->options, allocator, props, props_size);
+}
+
+
+extern LZMA_API(lzma_ret)
+lzma_raw_decoder_uncompressed(lzma_stream *strm, lzma_vli uncompressed_size)
+{
+	// Sanity check
+	if(strm == NULL || strm->internal == NULL ||
+		strm->internal->next.coder == NULL){
+		return LZMA_PROG_ERROR;
+	}
+
+	// This function is only supported by the LZMA1 filter
+	if(strm->internal->next.id != LZMA_FILTER_LZMA1){
+		return LZMA_OPTIONS_ERROR;
+	}
+
+	lzma_lz_decoder_uncompressed(strm->internal->next.coder,
+			uncompressed_size);
+
+	return LZMA_OK;
 }

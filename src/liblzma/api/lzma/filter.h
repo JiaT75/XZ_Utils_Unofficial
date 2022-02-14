@@ -214,6 +214,46 @@ extern LZMA_API(lzma_ret) lzma_raw_decoder(
 
 
 /**
+ * @brief       Set size of LZMA1 raw decoder without end-of-stream marker
+ *
+ * This function is needed when decompressing an LZMA1 stream that does not
+ * contain an end-of-stream or end-of-payload marker, but the size is
+ * known. This is only supported with LZMA1 and will return
+ * LZMA_OPTIONS_ERROR for all other filters. This function must only be
+ * called after proper initialization of the lzma_stream structure.
+ *
+ * \param       strm               Pointer to properly prepared lzma stream
+ * \param       uncompressed_size  Size of LZMA1 stream to decompress
+ *
+ * \return      - LZMA_OK
+ *              - LZMA_PROG_ERROR
+ *              - LZMA_OPTIONS_ERROR
+ */
+extern LZMA_API(lzma_ret) lzma_raw_decoder_uncompressed(
+		lzma_stream *strm,
+		lzma_vli uncompressed_size) lzma_nothrow;
+
+
+/**
+ * @brief       Set size of LZMA1 raw encoder output limit
+ *
+ * This function is needed to compress an LZMA1 stream with no other
+ * filters when the user does not want it to contain an end-of-payload
+ * marker. This will return LZMA_OPTIONS_ERROR for any filter chain
+ * that is not LZMA1 only. This function must only be called after proper
+ * initialization of the lzma_stream structure.
+ *
+ * \param       strm           Pointer to properly prepared lzma stream
+ * \param       uncomp_size    Pointer to size of data when uncompressed
+ * \param       out_limit      Maximum size of compressed data
+ *
+ */
+extern LZMA_API(lzma_ret) lzma_raw_encoder_set_out_limit(
+		lzma_stream *strm,
+		uint64_t *uncomp_size,
+		uint64_t out_limit) lzma_nothrow;
+
+/**
  * \brief       Update the filter chain in the encoder
  *
  * This function is for advanced users only. This function has two slightly

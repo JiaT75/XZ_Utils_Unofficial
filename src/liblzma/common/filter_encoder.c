@@ -284,3 +284,27 @@ lzma_properties_encode(const lzma_filter *filter, uint8_t *props)
 
 	return fe->props_encode(filter->options, props);
 }
+
+
+extern LZMA_API(lzma_ret)
+lzma_raw_encoder_set_out_limit(lzma_stream *strm, uint64_t *uncomp_size,
+		uint64_t out_limit)
+{
+	// Sanity check
+	if(strm == NULL || strm->internal == NULL ||
+		strm->internal->next.code == NULL ||
+		uncomp_size == NULL ||
+		strm->internal->next.set_out_limit == NULL){
+		return LZMA_PROG_ERROR;
+	}
+
+	// This function is only supported by the LZMA1 filter
+	if(strm->internal->next.id != LZMA_FILTER_LZMA1){
+		return LZMA_OPTIONS_ERROR;
+	}
+
+	return strm->internal->next.set_out_limit(
+				strm->internal->next.coder,
+				uncomp_size, out_limit);
+
+}
