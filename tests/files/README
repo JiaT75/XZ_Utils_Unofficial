@@ -270,6 +270,10 @@
 	xz -zc --arm=start=10 --delta=dist=256 --lzma2=lc=4,pb=4,nice=273,\
 	depth=200,mf=hc4 --no-adjust --format=raw raw_original.txt > lzma2_raw
 
+    lzma_filters/lzma1_alone_raw was created with the follwing command:
+    xz -zc --lzma1=lc=0,pb=0,mode=fast,nice=32,depth=0,mf=hc3 --no-adjust \
+    --format=raw raw_original.txt > > lzma1_alone_raw
+
 	raw_original.txt is lorem ipsem text generated from
 	compress_genearted_text.
 
