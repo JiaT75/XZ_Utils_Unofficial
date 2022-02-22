@@ -49,7 +49,7 @@
 	 * Filter for SPARC binaries.
 	 */
 
-#define LZMA_FILTER_ARM64         LZMA_VLI_C(0x0a)
+#define LZMA_FILTER_ARM64         LZMA_VLI_C(0xB)
        /**<
         * Filter for ARM64 binaries.
         */
