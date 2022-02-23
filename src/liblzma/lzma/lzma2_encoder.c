@@ -288,8 +288,11 @@ lzma2_encoder_options_update(void *coder_ptr, const lzma_filter *filter)
 	// only lc/lp/pb can be changed.
 	const lzma_options_lzma *opt = filter->options;
 	if (coder->opt_cur.lc != opt->lc || coder->opt_cur.lp != opt->lp
-			|| coder->opt_cur.pb != opt->pb) {
-		// Validate the options.
+			|| coder->opt_cur.pb != opt->pb
+			|| coder->opt_cur.mode != opt->mode) {
+		// Validate the options
+		// Do not validate mode option since they will be
+		// validated in lzma_lzma_set_mode
 		if (opt->lc > LZMA_LCLP_MAX || opt->lp > LZMA_LCLP_MAX
 				|| opt->lc + opt->lp > LZMA_LCLP_MAX
 				|| opt->pb > LZMA_PB_MAX)
@@ -302,6 +305,7 @@ lzma2_encoder_options_update(void *coder_ptr, const lzma_filter *filter)
 		coder->opt_cur.pb = opt->pb;
 		coder->need_properties = true;
 		coder->need_state_reset = true;
+		return lzma_lzma_set_mode(coder->lzma, filter->options);
 	}
 
 	return LZMA_OK;

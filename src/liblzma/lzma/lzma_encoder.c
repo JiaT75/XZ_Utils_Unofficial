@@ -598,23 +598,13 @@ lzma_lzma_encoder_reset(lzma_lzma1_encoder *coder,
 
 
 extern lzma_ret
-lzma_lzma_encoder_create(void **coder_ptr,
-		const lzma_allocator *allocator,
-		const lzma_options_lzma *options, lzma_lz_options *lz_options)
+lzma_lzma_set_mode(void* coder_ptr, const lzma_options_lzma *options)
 {
-	// Allocate lzma_lzma1_encoder if it wasn't already allocated.
-	if (*coder_ptr == NULL) {
-		*coder_ptr = lzma_alloc(sizeof(lzma_lzma1_encoder), allocator);
-		if (*coder_ptr == NULL)
-			return LZMA_MEM_ERROR;
-	}
-
-	lzma_lzma1_encoder *coder = *coder_ptr;
-
+	lzma_lzma1_encoder *coder = coder_ptr;
 	// Set compression mode. We haven't validates the options yet,
 	// but it's OK here, since nothing bad happens with invalid
 	// options in the code below, and they will get rejected by
-	// lzma_lzma_encoder_reset() call at the end of this function.
+	// lzma_lzma_encoder_reset() call later
 	switch (options->mode) {
 		case LZMA_MODE_FAST:
 			coder->fast_mode = true;
@@ -642,6 +632,28 @@ lzma_lzma_encoder_create(void **coder_ptr,
 		default:
 			return LZMA_OPTIONS_ERROR;
 	}
+
+	return LZMA_OK;
+}
+
+
+extern lzma_ret
+lzma_lzma_encoder_create(void **coder_ptr,
+		const lzma_allocator *allocator,
+		const lzma_options_lzma *options,
+		lzma_lz_options *lz_options)
+{
+	// Allocate lzma_lzma1_encoder if it wasn't already allocated.
+	if (*coder_ptr == NULL) {
+		*coder_ptr = lzma_alloc(sizeof(lzma_lzma1_encoder),
+				allocator);
+		if (*coder_ptr == NULL)
+			return LZMA_MEM_ERROR;
+	}
+
+	lzma_lzma1_encoder *coder = *coder_ptr;
+
+	lzma_lzma_set_mode(*coder_ptr, options);
 
 	// We don't need to write the first byte as literal if there is
 	// a non-empty preset dictionary. encode_init() wouldn't even work

@@ -53,6 +53,9 @@ extern lzma_ret lzma_lzma_encode(lzma_lzma1_encoder *restrict coder,
 		size_t *restrict out_pos, size_t out_size,
 		uint32_t read_limit);
 
+extern lzma_ret lzma_lzma_set_mode(void* coder,
+		const lzma_options_lzma *options);
+
 #endif
 
 #endif

@@ -68,8 +68,6 @@ Missing features
     It will be a separate library that supports uncompressed, .gz,
     .bz2, .lzma, and .xz files.
 
-    Support changing lzma_options_lzma.mode with lzma_filters_update().
-
     Support LZMA_FULL_FLUSH for lzma_stream_decoder() to stop at
     Block and Stream boundaries.
 
