@@ -73,27 +73,8 @@ init_decoder(lzma_stream *strm)
 	// Note that LZMA_MEMLIMIT_ERROR is never possible here. If you
 	// specify a very tiny limit, the error will be delayed until
 	// the first headers have been parsed by a call to lzma_code().
-	const char *msg;
-	switch (ret) {
-	case LZMA_MEM_ERROR:
-		msg = "Memory allocation failed";
-		break;
-
-	case LZMA_OPTIONS_ERROR:
-		msg = "Unsupported decompressor flags";
-		break;
-
-	default:
-		// This is most likely LZMA_PROG_ERROR indicating a bug in
-		// this program or in liblzma. It is inconvenient to have a
-		// separate error message for errors that should be impossible
-		// to occur, but knowing the error code is important for
-		// debugging. That's why it is good to print the error code
-		// at least when there is no good error message to show.
-		msg = "Unknown error, possibly a bug";
-		break;
-	}
-
+	const char *msg = lzma_strerror(ret, false);
+	
 	fprintf(stderr, "Error initializing the decoder: %s (error code %u)\n",
 			msg, ret);
 	return false;
@@ -181,55 +162,7 @@ decompress(lzma_stream *strm, const char *inname, FILE *infile, FILE *outfile)
 			// enumeration aren't possible in this example, but
 			// can be made possible by enabling memory usage limit
 			// or adding flags to the decoder initialization.
-			const char *msg;
-			switch (ret) {
-			case LZMA_MEM_ERROR:
-				msg = "Memory allocation failed";
-				break;
-
-			case LZMA_FORMAT_ERROR:
-				// .xz magic bytes weren't found.
-				msg = "The input is not in the .xz format";
-				break;
-
-			case LZMA_OPTIONS_ERROR:
-				// For example, the headers specify a filter
-				// that isn't supported by this liblzma
-				// version (or it hasn't been enabled when
-				// building liblzma, but no-one sane does
-				// that unless building liblzma for an
-				// embedded system). Upgrading to a newer
-				// liblzma might help.
-				//
-				// Note that it is unlikely that the file has
-				// accidentally became corrupt if you get this
-				// error. The integrity of the .xz headers is
-				// always verified with a CRC32, so
-				// unintentionally corrupt files can be
-				// distinguished from unsupported files.
-				msg = "Unsupported compression options";
-				break;
-
-			case LZMA_DATA_ERROR:
-				msg = "Compressed file is corrupt";
-				break;
-
-			case LZMA_BUF_ERROR:
-				// Typically this error means that a valid
-				// file has got truncated, but it might also
-				// be a damaged part in the file that makes
-				// the decoder think the file is truncated.
-				// If you prefer, you can use the same error
-				// message for this as for LZMA_DATA_ERROR.
-				msg = "Compressed file is truncated or "
-						"otherwise corrupt";
-				break;
-
-			default:
-				// This is most likely LZMA_PROG_ERROR.
-				msg = "Unknown error, possibly a bug";
-				break;
-			}
+			const char *msg = lzma_strerror(ret, false);
 
 			fprintf(stderr, "%s: Decoder error: "
 					"%s (error code %u)\n",

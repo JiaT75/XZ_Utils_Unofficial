@@ -699,3 +699,22 @@ extern LZMA_API(uint64_t) lzma_memlimit_get(const lzma_stream *strm)
  */
 extern LZMA_API(lzma_ret) lzma_memlimit_set(
 		lzma_stream *strm, uint64_t memlimit) lzma_nothrow;
+
+/**
+ * \brief       Get the description for a provided lzma_ret status code
+ * 
+ * This function converts an lzma_ret value to a string to help users
+ * understand the meaning of the lzma_ret values. The meaning of the
+ * lzma_ret value depends on the context it was returned in, which makes
+ * this function tricky. In order to help provide this function with
+ * context, the is_encoder parameter tells the function if the lzma_ret
+ * value should be interpreted as a encoder or decoder status.
+ * 
+ * \param       err         status code to convert to string
+ * \param       is_encoder  bool flag if the context is encoding or decoding
+ * 
+ * \return      String description of the input status code based on the
+ *              context of encoding or decoder
+ */
+extern LZMA_API(const char *) lzma_strerror(lzma_ret err, 
+		lzma_bool is_encoder) lzma_nothrow lzma_attr_pure;

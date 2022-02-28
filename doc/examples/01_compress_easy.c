@@ -73,30 +73,7 @@ init_encoder(lzma_stream *strm, uint32_t preset)
 	// lzma/container.h (src/liblzma/api/lzma/container.h in the source
 	// package or e.g. /usr/include/lzma/container.h depending on the
 	// install prefix).
-	const char *msg;
-	switch (ret) {
-	case LZMA_MEM_ERROR:
-		msg = "Memory allocation failed";
-		break;
-
-	case LZMA_OPTIONS_ERROR:
-		msg = "Specified preset is not supported";
-		break;
-
-	case LZMA_UNSUPPORTED_CHECK:
-		msg = "Specified integrity check is not supported";
-		break;
-
-	default:
-		// This is most likely LZMA_PROG_ERROR indicating a bug in
-		// this program or in liblzma. It is inconvenient to have a
-		// separate error message for errors that should be impossible
-		// to occur, but knowing the error code is important for
-		// debugging. That's why it is good to print the error code
-		// at least when there is no good error message to show.
-		msg = "Unknown error, possibly a bug";
-		break;
-	}
+	const char *msg = lzma_strerror(ret, true);
 
 	fprintf(stderr, "Error initializing the encoder: %s (error code %u)\n",
 			msg, ret);
@@ -213,43 +190,7 @@ compress(lzma_stream *strm, FILE *infile, FILE *outfile)
 			// install prefix) for the list and documentation of
 			// possible values. Most values listen in lzma_ret
 			// enumeration aren't possible in this example.
-			const char *msg;
-			switch (ret) {
-			case LZMA_MEM_ERROR:
-				msg = "Memory allocation failed";
-				break;
-
-			case LZMA_DATA_ERROR:
-				// This error is returned if the compressed
-				// or uncompressed size get near 8 EiB
-				// (2^63 bytes) because that's where the .xz
-				// file format size limits currently are.
-				// That is, the possibility of this error
-				// is mostly theoretical unless you are doing
-				// something very unusual.
-				//
-				// Note that strm->total_in and strm->total_out
-				// have nothing to do with this error. Changing
-				// those variables won't increase or decrease
-				// the chance of getting this error.
-				msg = "File size limits exceeded";
-				break;
-
-			default:
-				// This is most likely LZMA_PROG_ERROR, but
-				// if this program is buggy (or liblzma has
-				// a bug), it may be e.g. LZMA_BUF_ERROR or
-				// LZMA_OPTIONS_ERROR too.
-				//
-				// It is inconvenient to have a separate
-				// error message for errors that should be
-				// impossible to occur, but knowing the error
-				// code is important for debugging. That's why
-				// it is good to print the error code at least
-				// when there is no good error message to show.
-				msg = "Unknown error, possibly a bug";
-				break;
-			}
+			const char *msg = lzma_strerror(ret, true);
 
 			fprintf(stderr, "Encoder error: %s (error code %u)\n",
 					msg, ret);

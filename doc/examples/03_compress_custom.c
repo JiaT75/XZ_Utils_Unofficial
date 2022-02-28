@@ -72,27 +72,7 @@ init_encoder(lzma_stream *strm)
 	if (ret == LZMA_OK)
 		return true;
 
-	const char *msg;
-	switch (ret) {
-	case LZMA_MEM_ERROR:
-		msg = "Memory allocation failed";
-		break;
-
-	case LZMA_OPTIONS_ERROR:
-		// We are no longer using a plain preset so this error
-		// message has been edited accordingly compared to
-		// 01_compress_easy.c.
-		msg = "Specified filter chain is not supported";
-		break;
-
-	case LZMA_UNSUPPORTED_CHECK:
-		msg = "Specified integrity check is not supported";
-		break;
-
-	default:
-		msg = "Unknown error, possibly a bug";
-		break;
-	}
+	const char *msg = lzma_strerror(ret, true);
 
 	fprintf(stderr, "Error initializing the encoder: %s (error code %u)\n",
 			msg, ret);
@@ -150,20 +130,7 @@ compress(lzma_stream *strm, FILE *infile, FILE *outfile)
 			if (ret == LZMA_STREAM_END)
 				return true;
 
-			const char *msg;
-			switch (ret) {
-			case LZMA_MEM_ERROR:
-				msg = "Memory allocation failed";
-				break;
-
-			case LZMA_DATA_ERROR:
-				msg = "File size limits exceeded";
-				break;
-
-			default:
-				msg = "Unknown error, possibly a bug";
-				break;
-			}
+			const char *msg = lzma_strerror(ret, true);
 
 			fprintf(stderr, "Encoder error: %s (error code %u)\n",
 					msg, ret);
