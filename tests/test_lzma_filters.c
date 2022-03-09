@@ -401,6 +401,7 @@ test_mid_stream_filter_change(const uint8_t* input_data)
 	validate_block_header(second_block_start, updated_filters);
 	validate_block_header(last_block_start, lzma2_filters);
 
+	lzma_end(&strm);
 	free(decompressed_orig);
 }
 
@@ -465,6 +466,7 @@ test_mid_stream_filter_update(const uint8_t* input_data)
 	decode_partial_strm(&raw_decode_strm);
 	assert_n_array_equal(input_data, decompressed_orig,
 				raw_decode_strm.total_out);
+	lzma_end(&lzma2_raw_strm);
 	free(decompressed_orig);
 
 	// Next set up stream encoder
@@ -495,6 +497,7 @@ test_mid_stream_filter_update(const uint8_t* input_data)
 	decode_partial_strm(&lzma2_decode_strm);
 	assert_n_array_equal(input_data, decompressed_orig,
 				lzma2_decode_strm.total_out);
+	lzma_end(&lzma2_decode_strm);
 	free(decompressed_orig);
 }
 
@@ -524,6 +527,7 @@ test_pre_compression_filter_change(const uint8_t* input_data)
 	// Check the output to ensure it has the expected updated filters
 	uint8_t *first_block_start = output_data + LZMA_STREAM_HEADER_SIZE;
 	validate_block_header(first_block_start, updated_filters);
+	lzma_end(&strm);
 }
 #endif
 
