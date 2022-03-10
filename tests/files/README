@@ -282,3 +282,26 @@
 	raw_original.txt is lorem ipsem text generated from
 	compress_genearted_text.
 
+
+    diff --git a/tests/files/README b/tests/files/README
+index 8f2d4855..505ba151 100644
+--- a/tests/files/README
++++ b/tests/files/README
+@@ -262,8 +262,14 @@
+     the LZMA2 decoder doesn't indicate end of stream.
+ 
+ 4 Multithreaded Files
+	abc.xz was created with: xz -zc abc -T2 > abc.xz
+	abc.xz was created with: xz -zc abc -T2 --block-size=4KB > abc.xz
+ 
+	text.xz was created with: xz -zc text -T2 > text.xz
+	text.xz was created with: xz -zc text -T2 --block-size=4K > text.xz
+ 
+	random.xz was created wtih: xz -zc random -T2 > random.xz
+	random.xz was created with: xz -zc random -T2 --block-size=4K > random.xz
+
+	random_corrupt_truncated.xz was created with:
+	truncate -s 300000 random_corrupt_truncated.xz
+
+	random_corrupt_contents.xz was created by editing portions of the file
+	with hexedit in order to change the contents, but not change the length.

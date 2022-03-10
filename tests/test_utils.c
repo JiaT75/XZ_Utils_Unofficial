@@ -154,3 +154,36 @@ read_file_into_buffer(const char* path, uint8_t** buffer_ptr)
 	*buffer_ptr = buffer;
 	return file_size;
 }
+
+
+bool
+prepare_test_file_data(test_file_data *data)
+{
+	if (data->compressed_filename != NULL) {
+		data->compressed_size = read_file_into_buffer(
+				data->compressed_filename,
+				&data->compressed_data);
+		if (data->compressed_size == 0)
+			return false;
+	}
+
+	if (data->plain_filename != NULL){
+		data->plain_size = read_file_into_buffer(
+				data->plain_filename,
+				&data->plain_data);
+		if (data->plain_size == 0)
+			return false;
+	}
+
+	return true;
+}
+
+
+void
+free_test_file_data(test_file_data *data)
+{
+	if (data->compressed_filename != NULL)
+		free(data->compressed_data);
+	if (data->plain_filename != NULL)
+		free(data->plain_data);
+}
