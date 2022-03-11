@@ -25,6 +25,7 @@ all_tests(void)
 	test_lzma_filters();
 	test_lzma_raw();
 	test_lzma_properties();
+	test_mt_decoder();
 }
 
 int

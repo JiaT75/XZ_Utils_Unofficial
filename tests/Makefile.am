@@ -47,6 +47,7 @@ liblzma_tests_SOURCES = \
 	test_lzma_raw.c \
 	test_lzma_properties.c \
 	test_utils.c \
+	test_mt_decoder.c \
 	liblzma_tests.c
 
 xz_tests_SOURCES = \

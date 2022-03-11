@@ -28,7 +28,7 @@
 #define EXPECTED_LZMA2_DECODER_MEMUSAGE 8455576
 
 // Creating these globals reduce recomputation
-static uint8_t* test_file_data;
+static uint8_t* test_data;
 static size_t test_file_data_size;
 static const char* test_data_filename =
 			"files/lzma_filters/raw_original.txt";
@@ -180,7 +180,7 @@ test_lzma_raw_encoder(void)
 	lzma_stream lzma1_raw_strm = LZMA_STREAM_INIT;
 	assert_int_equal(lzma_raw_encoder(&lzma1_raw_strm, lzma1_filters),
 						LZMA_OK);
-	raw_coder_and_verify(test_file_data, test_file_data_size,
+	raw_coder_and_verify(test_data, test_file_data_size,
 				test_lzma1_raw_encoded_data,
 				test_lzma1_raw_encoded_data_size,
 				&lzma1_raw_strm);
@@ -191,7 +191,7 @@ test_lzma_raw_encoder(void)
 	lzma_stream lzma2_raw_strm = LZMA_STREAM_INIT;
 	assert_int_equal(lzma_raw_encoder(&lzma2_raw_strm, lzma2_filters),
 						LZMA_OK);
-	raw_coder_and_verify(test_file_data, test_file_data_size,
+	raw_coder_and_verify(test_data, test_file_data_size,
 				test_lzma2_raw_encoded_data,
 				test_lzma2_raw_encoded_data_size,
 				&lzma2_raw_strm);
@@ -215,7 +215,7 @@ test_lzma_raw_decoder(void)
 						LZMA_OK);
 	raw_coder_and_verify(test_lzma1_raw_encoded_data,
 				test_lzma1_raw_encoded_data_size,
-				test_file_data, test_file_data_size,
+				test_data, test_file_data_size,
 				&lzma1_raw_strm);
 #endif
 #ifdef TEST_FILTER_CHAIN_DECODER_LZMA2
@@ -226,7 +226,7 @@ test_lzma_raw_decoder(void)
 
 	raw_coder_and_verify(test_lzma2_raw_encoded_data,
 				test_lzma2_raw_encoded_data_size,
-				test_file_data, test_file_data_size,
+				test_data, test_file_data_size,
 				&lzma2_raw_strm);
 #endif
 }
@@ -279,13 +279,13 @@ test_lzma_raw_buffer_encode(void)
 				LZMA_OPTIONS_ERROR);
 #endif
 #ifdef TEST_FILTER_CHAIN_ENCODER_LZMA1
-	raw_buffer_encode_and_verify(test_file_data, test_file_data_size,
+	raw_buffer_encode_and_verify(test_data, test_file_data_size,
 				test_lzma1_raw_encoded_data,
 				test_lzma1_raw_encoded_data_size,
 				lzma1_filters);
 #endif
 #ifdef TEST_FILTER_CHAIN_ENCODER_LZMA2
-	raw_buffer_encode_and_verify(test_file_data, test_file_data_size,
+	raw_buffer_encode_and_verify(test_data, test_file_data_size,
 				test_lzma2_raw_encoded_data,
 				test_lzma2_raw_encoded_data_size,
 				lzma2_filters);
@@ -343,13 +343,13 @@ test_lzma_raw_buffer_decode(void)
 #ifdef TEST_FILTER_CHAIN_DECODER_LZMA1
 	raw_buffer_decode_and_verify(test_lzma1_raw_encoded_data,
 				test_lzma1_raw_encoded_data_size,
-				test_file_data, test_file_data_size,
+				test_data, test_file_data_size,
 				lzma1_filters);
 #endif
 #ifdef TEST_FILTER_CHAIN_DECODER_LZMA2
 	raw_buffer_decode_and_verify(test_lzma2_raw_encoded_data,
 				test_lzma2_raw_encoded_data_size,
-				test_file_data, test_file_data_size,
+				test_data, test_file_data_size,
 				lzma2_filters);
 #endif
 }
@@ -399,7 +399,7 @@ test_lzma_raw_encoder_set_out_limit(void)
 	// First, create buffer with extra space in case
 	// lzma_raw_encoder_set_out_limit does not work properly
 	uint8_t output_buffer[LZMA_FILTER_RAW_CHUNK_SIZE + 1000];
-	strm.next_in = test_file_data;
+	strm.next_in = test_data;
 	strm.avail_in = test_file_data_size;
 	strm.next_out = output_buffer;
 	strm.avail_out = LZMA_FILTER_RAW_CHUNK_SIZE;
@@ -469,7 +469,7 @@ test_lzma_raw_decoder_uncompressed(void)
 			LZMA_OK);
 
 	uint8_t compressed_buffer[LZMA_FILTER_RAW_CHUNK_SIZE + 1000];
-	compress_strm.next_in = test_file_data;
+	compress_strm.next_in = test_data;
 	compress_strm.avail_in = test_file_data_size;
 	compress_strm.next_out = compressed_buffer;
 	compress_strm.avail_out = LZMA_FILTER_RAW_CHUNK_SIZE + 1000;
@@ -521,7 +521,7 @@ test_lzma_raw_decoder_uncompressed(void)
 	// Amount of decompressed bytes needs to equal uncomp_size
 	assert_int_equal(strm.total_out, uncomp_size);
 	// Compare output with the original input data
-	assert_n_array_equal(test_file_data, out_buffer, uncomp_size);
+	assert_n_array_equal(test_data, out_buffer, uncomp_size);
 	free(out_buffer);
 
 #endif
@@ -535,7 +535,7 @@ test_lzma_raw(void)
 	// Fill in test data globals
 	test_file_data_size = read_file_into_buffer(
 				test_data_filename,
-				&test_file_data);
+				&test_data);
 	assert_true(test_file_data_size);
 
 	test_lzma1_raw_encoded_data_size = read_file_into_buffer(
@@ -563,7 +563,7 @@ test_lzma_raw(void)
 	run_test(test_lzma_raw_encoder_set_out_limit);
 	run_test(test_lzma_raw_decoder_uncompressed);
 
-	free(test_file_data);
+	free(test_data);
 	free(test_lzma1_raw_encoded_data);
 	free(test_lzma2_raw_encoded_data);
 	free(test_lzma1_alone_raw_encoded_data);

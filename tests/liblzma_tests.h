@@ -25,5 +25,6 @@ void test_stream_header_and_footer_coders(void);
 void test_lzma_filters(void);
 void test_lzma_raw(void);
 void test_lzma_properties(void);
+void test_mt_decoder(void);
 
 #endif
