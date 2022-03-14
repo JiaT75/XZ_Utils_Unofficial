@@ -301,7 +301,7 @@ decode_expect_broken(test_file_data *input_data, uint8_t * output,
 	}
 
 	strm.avail_in = input_data->compressed_size;
-	strm.avail_out = out_len;
+	strm.avail_out = *out_len;
 	strm.next_in = input_data->compressed_data;
 	strm.next_out = output;
 
@@ -353,7 +353,7 @@ test_broken_input(void)
 	/*
 	Commented out here because this code currently causes
 	deadlock
-
+	*/
 	decode_expect_broken(&random_truncated, output_mt,
 			&output_size_mt, true);
 	decode_expect_broken(&random_truncated, output_st,
@@ -361,7 +361,7 @@ test_broken_input(void)
 
 	assert_int_equal(output_size_st, output_size_mt);
 	assert_n_array_equal(output_st, output_st, output_size_st);
-	*/
+	
 
 	memzero(output_mt, output_size_mt);
 	memzero(output_st, output_size_st);
@@ -556,10 +556,10 @@ test_mt_decoder(void)
 	assert_true(prepare_test_file_data(&random_data));
 
 	test_fixture_start();
-	run_test(test_basic_mt_decoder);
+	//run_test(test_basic_mt_decoder);
 	run_test(test_broken_input);
-	run_test(test_memlimit_threading);
-	run_test(test_memlimit_stop);
+	//run_test(test_memlimit_threading);
+	//run_test(test_memlimit_stop);
 	//run_test(test_flags);
 	//run_test(test_timeout);
 	test_fixture_end();
