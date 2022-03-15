@@ -304,6 +304,9 @@ worker_enable_partial_update(void *thr_ptr)
 
 	mythread_sync(thr->mutex) {
 		thr->partial_update = true;
+		// Signal to worker thread to wake it up
+		// in case it has a partial update ready
+		mythread_cond_signal(&thr->cond);
 	}
 }
 
@@ -375,6 +378,19 @@ next_loop_unlocked:
 
 	if (in_filled == thr->in_pos) {
 		mythread_cond_wait(&thr->cond, &thr->mutex);
+		// If thr->partial_update is true and we have no new update,
+		// tell the main thread the progress made to avoid a
+		// race condition with the main thread setting partial
+		// update and this thread sleeping until more input
+		// arrives. This is only necessary if there is a truncated
+		// file
+		if (thr->partial_update && in_filled == thr->in_pos) {
+			mythread_sync(thr->coder->mutex) {
+				thr->outbuf->pos = thr->out_pos;
+				thr->outbuf->decoder_in_pos = thr->in_pos;
+				mythread_cond_signal(&thr->coder->cond);
+			}
+		}
 		goto next_loop_unlocked;
 	}
 
