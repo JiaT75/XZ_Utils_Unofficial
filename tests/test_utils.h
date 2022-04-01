@@ -3,7 +3,7 @@
 /// \file       test_utils.h
 /// \brief      Test util definitions and function prototypes
 //
-//  Author:     Jia Tan
+//  Author:     TODO
 //
 //  This file has been put into the public domain.
 //  You can do whatever you want with this file.
@@ -40,8 +40,8 @@ typedef struct {
 	uint8_t* plain_data;
 	size_t compressed_size;
 	size_t plain_size;
-	char* compressed_filename;
-	char* plain_filename;
+	const char* compressed_filename;
+	const char* plain_filename;
 } test_file_data;
 
 int systemf(const char *fmt, ...);
@@ -51,8 +51,10 @@ bool can_xz_dec(void);
 bool can_glob(void);
 
 void glob_and_callback(const char* path, glob_callback callback);
+void sleep_ms(int ms);
 
 bool file_exists_and_can_execute(const char* path);
+bool file_exists_and_can_read(const char* path);
 void get_path_to_files(char* out_path);
 size_t read_file_into_buffer(const char* path, uint8_t** buffer_ptr);
 

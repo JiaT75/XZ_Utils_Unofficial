@@ -261,43 +261,11 @@
     Uncompressed Size bytes of output will have been produced but
     the LZMA2 decoder doesn't indicate end of stream.
 
-3. lzma_filters Files
-
-    A subdirectory in this folder contains test files for liblzma API
-	functions defined in src/liblzma/api/lzma/filter.h. These files are
-	pre-generated in order to simplify and standardize the filter tests.
-
-	lzma_filters/lzma1_raw was created with the following command:
-	xz -zc --x86 --delta=dist=1 --lzma1=lc=0,pb=0,mode=fast,nice=32,\
-	depth=0,mf=hc3 --no-adjust --format=raw raw_original.txt > lzma1_raw
-
-	lzma_filters/lzma2_raw was created with the following command:
-	xz -zc --arm=start=10 --delta=dist=256 --lzma2=lc=4,pb=4,nice=273,\
-	depth=200,mf=hc4 --no-adjust --format=raw raw_original.txt > lzma2_raw
-
-    lzma_filters/lzma1_alone_raw was created with the follwing command:
-    xz -zc --lzma1=lc=0,pb=0,mode=fast,nice=32,depth=0,mf=hc3 --no-adjust \
-    --format=raw raw_original.txt > > lzma1_alone_raw
-
-	raw_original.txt is lorem ipsem text generated from
-	compress_genearted_text.
-
-
-    diff --git a/tests/files/README b/tests/files/README
-index 8f2d4855..505ba151 100644
---- a/tests/files/README
-+++ b/tests/files/README
-@@ -262,8 +262,14 @@
-     the LZMA2 decoder doesn't indicate end of stream.
- 
- 4 Multithreaded Files
-	abc.xz was created with: xz -zc abc -T2 > abc.xz
+2.4 Multithreaded Files
 	abc.xz was created with: xz -zc abc -T2 --block-size=4KB > abc.xz
- 
-	text.xz was created with: xz -zc text -T2 > text.xz
+
 	text.xz was created with: xz -zc text -T2 --block-size=4K > text.xz
- 
-	random.xz was created wtih: xz -zc random -T2 > random.xz
+
 	random.xz was created with: xz -zc random -T2 --block-size=4K > random.xz
 
 	random_corrupt_truncated.xz was created with:
@@ -305,3 +273,14 @@ index 8f2d4855..505ba151 100644
 
 	random_corrupt_contents.xz was created by editing portions of the file
 	with hexedit in order to change the contents, but not change the length.
+
+	text_no_check.xz was created with:
+	xz -zc text -T2 --block-size=4K --check=none > text_no_check.xz
+
+	text_unsupported_check.xz was created by changing the check type to 0x5
+	which is no currently supported. This had to be changed in the stream header
+	and footer and the crc32 checksums were updated accordingly.
+
+	combined.xz was created with: cat text.xz abc.xz random.xz > combined.xz
+
+	random_st.xz was created with: xz -zc --block-size=4K random > random_st.xz

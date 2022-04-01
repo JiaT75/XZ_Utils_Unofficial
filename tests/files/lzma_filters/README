@@ -1,0 +1,14 @@
+
+Compressed with:
+xz -zc --x86 --delta=dist=1 --lzma1=lc=0,pb=0,mode=fast,nice=32,depth=0,mf=hc3 --no-adjust --format=raw compress_generated_text > lzma1_raw
+
+
+Can decompress with:
+xz -dc --x86 --delta=dist=1 --lzma1=lc=0,pb=0,mode=fast,nice=32,depth=0,mf=hc3 --no-adjust --format=raw lzma1_raw > raw_original.txt
+
+
+
+xz -zc --arm=start=10 --delta=dist=256 --lzma2=lc=4,pb=4,nice=273,depth=200,mf=hc4 --no-adjust --format=raw compress_generated_text > lzma2_raw
+
+
+xz -zc --arm=start=10 --delta=dist=256 --lzma2 --no-adjust --format=raw compress_generated_text > lzma2_raw

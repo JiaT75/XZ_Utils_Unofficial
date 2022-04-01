@@ -3,7 +3,7 @@
 /// \file       test_utils.c
 /// \brief      Provides test util function implementations
 //
-//  Author:     Jia Tan
+//  Author:     TODO
 //
 //  This file has been put into the public domain.
 //  You can do whatever you want with this file.
@@ -68,6 +68,17 @@ can_glob(void)
 	return false;
 #endif
 
+}
+
+
+void
+sleep_ms(int ms)
+{
+#if defined(_WIN32)
+	Sleep(ms);
+#else
+	usleep(ms * 1000);
+#endif
 }
 
 bool
