@@ -299,16 +299,9 @@ decode_expect_broken(test_file_data *input_data, uint8_t * output,
 	strm.next_in = input_data->compressed_data;
 	strm.next_out = output;
 
-	while (1) {
-		lzma_ret ret = lzma_code(&strm, LZMA_FINISH);
-		// Expecting error, so failing to detect it
-		// would be a problem
-		assert_true(ret != LZMA_STREAM_END);
-
-		if (ret != LZMA_OK) {
-			break;
-		}
-	}
+	// Expecting error, so failing to detect it
+	// would be a problem
+	assert_true(lzma_code(&strm, LZMA_FINISH) != LZMA_STREAM_END);
 
 	lzma_end(&strm);
 	*out_len = strm.total_out;
