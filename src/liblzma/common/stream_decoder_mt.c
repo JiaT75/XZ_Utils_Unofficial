@@ -300,12 +300,29 @@ struct lzma_stream_coder {
 	/// Stream Padding is a multiple of four bytes.
 	bool concatenated;
 
+	/// If true, we will return any errors immediately instead of first
+	/// producing all output before the location of the error.
+	bool fail_fast;
+
+
 	/// When decoding concatenated Streams, this is true as long as we
 	/// are decoding the first Stream. This is needed to avoid misleading
 	/// LZMA_FORMAT_ERROR in case the later Streams don't have valid magic
 	/// bytes.
 	bool first_stream;
 
+	/// This is used to track if the previous call to stream_decode_mt()
+	/// had output space (*out_pos < out_size) and managed to fill the
+	/// output buffer (*out_pos == out_size). This may be set to true
+	/// in read_output_and_wait(). This is read and then reset to false
+	/// at the beginning of stream_decode_mt().
+	///
+	/// This is needed to support applications that call lzma_code() in
+	/// such a way that more input is provided only when lzma_code()
+	/// didn't fill the output buffer completely. Basically, this makes
+	/// it easier to convert such applications from single-threaded
+	/// decoder to multi-threaded decoder.
+	bool out_was_filled;
 
 	/// Write position in buffer[] and position in Stream Padding
 	size_t pos;
@@ -669,6 +686,7 @@ read_output_and_wait(struct lzma_stream_coder *coder,
 		do {
 			// Get as much output from the queue as is possible
 			// without blocking.
+			const size_t out_start = *out_pos;
 			do {
 				ret = lzma_outq_read(&coder->outq, allocator,
 						out, out_pos, out_size,
@@ -696,19 +714,39 @@ read_output_and_wait(struct lzma_stream_coder *coder,
 			if (ret != LZMA_OK)
 				break;
 
+			// If the output buffer is now full but it wasn't full
+			// when this function was called, set out_was_filled.
+			// This way the next call to stream_decode_mt() knows
+			// that some output was produced and no output space
+			// remained in the previous call to stream_decode_mt().
+			if (*out_pos == out_size && *out_pos != out_start)
+				coder->out_was_filled = true;
+
 			// Check if any thread has indicated an error.
 			if (coder->thread_error != LZMA_OK) {
-				if (coder->pending_error == LZMA_OK)
-					coder->pending_error
-							= coder->thread_error;
+				// If LZMA_FAIL_FAST was used, report errors
+				// from worker threads immediately.
+				if (coder->fail_fast) {
+					ret = coder->thread_error;
+					break;
+				}
 
-				// FIXME? Add a flag to do this conditionally?
-				// That way errors would get reported to the
-				// application without a delay.
-// 				if (coder->fast_errors) {
-// 					ret = coder->thread_error;
-// 					break;
-// 				}
+				// Otherwise set pending_error. The value we
+				// set here will not actually get used other
+				// than working as a flag that an error has
+				// occurred. This is because in SEQ_ERROR
+				// all output before the error will be read
+				// first by calling this function, and once we
+				// reach the location of the (first) error the
+				// error code from the above lzma_outq_read()
+				// will be returned to the application.
+				//
+				// Use LZMA_PROG_ERROR since the value should
+				// never leak to the application. It's
+				// possible that pending_error has already
+				// been set but that doesn't matter: if we get
+				// here, pending_error only works as a flag.
+				coder->pending_error = LZMA_PROG_ERROR;
 			}
 
 			// Check if decoding of the next Block can be started.
@@ -962,10 +1000,60 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 {
 	struct lzma_stream_coder *coder = coder_ptr;
 
-	const size_t in_start = *in_pos;
-
 	mythread_condtime wait_abs;
 	bool has_blocked = false;
+
+	// Determine if in SEQ_BLOCK_HEADER and SEQ_BLOCK_THR_RUN we should
+	// tell read_output_and_wait() to wait until it can fill the output
+	// buffer (or a timeout occurs). Two conditions must be met:
+	//
+	// (1) If the caller provided no new input. The reason for this
+	//     can be, for example, the end of the file or that there is
+	//     a pause in the input stream and more input is available
+	//     a little later. In this situation we should wait for output
+	//     because otherwise we would end up in a busy-waiting loop where
+	//     we make no progress and the application just calls us again
+	//     without providing any new input. This would then result in
+	//     LZMA_BUF_ERROR even though more output would be available
+	//     once the worker threads decode more data.
+	//
+	// (2) Even if (1) is true, we will not wait if the previous call to
+	//     this function managed to produce some output and the output
+	//     buffer became full. This is for compatibility with applications
+	//     that call lzma_code() in such a way that new input is provided
+	//     only when the output buffer didn't become full. Without this
+	//     trick such applications would have bad performance (bad
+	//     parallelization due to decoder not getting input fast enough).
+	//
+	//     NOTE: Such loops might require that timeout is disabled (0)
+	//     if they assume that output-not-full implies that all input has
+	//     been consumed. If and only if timeout is enabled, we may return
+	//     when output isn't full *and* not all input has been consumed.
+	//
+	// However, if LZMA_FINISH is used, the above is ignored and we always
+	// wait (timeout can still cause us to return) because we know that
+	// we won't get any more input. This matters if the input file is
+	// truncated and we are doing single-shot decoding, that is,
+	// timeout = 0 and LZMA_FINISH is used on the first call to
+	// lzma_code() and the output buffer is known to be big enough
+	// to hold all uncompressed data:
+	//
+	//   - If LZMA_FINISH wasn't handled specially, we could return
+	//     LZMA_OK before providing all output that is possible with the
+	//     truncated input. The rest would be available if lzma_code() was
+	//     called again but then it's not single-shot decoding anymore.
+	//
+	//   - By handling LZMA_FINISH specially here, the first call will
+	//     produce all the output, matching the behavior of the
+	//     single-threaded decoder.
+	//
+	// So it's a very specific corner case but also easy to avoid. Note
+	// that this special handling of LZMA_FINISH has no effect for
+	// single-shot decoding when the input file is valid (not truncated);
+	// premature LZMA_OK wouldn't be possible as long as timeout = 0.
+	const bool waiting_allowed = action == LZMA_FINISH
+			|| (*in_pos == in_size && !coder->out_was_filled);
+	coder->out_was_filled = false;
 
 	while (true)
 	switch (coder->sequence) {
@@ -1043,11 +1131,11 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 			// without a delay.
 			//
 			// On the other hand, if lzma_code() was called with
-			// an empty input buffer (in_start == in_size), treat
-			// it specially: try to fill the output buffer even
-			// if it requires waiting for the worker threads to
-			// provide output (timeout, if specified, can still
-			// cause us to return).
+			// an empty input buffer(*), treat it specially: try
+			// to fill the output buffer even if it requires
+			// waiting for the worker threads to provide output
+			// (timeout, if specified, can still cause us to
+			// return).
 			//
 			//   - This way the application will be able to get all
 			//     data that can be decoded from the input provided
@@ -1062,11 +1150,15 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 			//     anything and will return LZMA_OK immediately
 			//     (coder->timeout is completely ignored).
 			//
+			// (*) See the comment at the beginning of this
+			//     function how waiting_allowed is determined
+			//     and why there is an exception to the rule
+			//     of "called with an empty input buffer".
 			assert(*in_pos == in_size);
 
 			return_if_error(read_output_and_wait(coder, allocator,
 				out, out_pos, out_size,
-				NULL, in_start == in_size,
+				NULL, waiting_allowed,
 				&wait_abs, &has_blocked));
 
 			if (coder->pending_error != LZMA_OK) {
@@ -1084,9 +1176,18 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 
 		// See if an error occurred.
 		if (ret != LZMA_STREAM_END) {
-			if (coder->pending_error == LZMA_OK)
-				coder->pending_error = ret;
-
+			// NOTE: Here and in all other places where
+			// pending_error is set, it may overwrite the value
+			// (LZMA_PROG_ERROR) set by read_output_and_wait().
+			// That function might overwrite value set here too.
+			// These are fine because when read_output_and_wait()
+			// sets pending_error, it actually works as a flag
+			// variable only ("some error has occurred") and the
+			// actual value of pending_error is not used in
+			// SEQ_ERROR. In such cases SEQ_ERROR will eventually
+			// get the correct error code from the return value of
+			// a later read_output_and_wait() call.
+			coder->pending_error = ret;
 			coder->sequence = SEQ_ERROR;
 			break;
 		}
@@ -1097,9 +1198,7 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 
 		if (coder->mem_next_filters == UINT64_MAX) {
 			// One or more unknown Filter IDs.
-			if (coder->pending_error == LZMA_OK)
-				coder->pending_error = LZMA_OPTIONS_ERROR;
-
+			coder->pending_error = LZMA_OPTIONS_ERROR;
 			coder->sequence = SEQ_ERROR;
 			break;
 		}
@@ -1188,9 +1287,7 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 					&coder->block_options),
 				coder->block_options.uncompressed_size);
 		if (ret != LZMA_OK) {
-			if (coder->pending_error == LZMA_OK)
-				coder->pending_error = ret;
-
+			coder->pending_error = ret;
 			coder->sequence = SEQ_ERROR;
 			break;
 		}
@@ -1359,9 +1456,7 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 		// Check if memory usage calculation and Block encoder
 		// initialization succeeded.
 		if (ret != LZMA_OK) {
-			if (coder->pending_error == LZMA_OK)
-				coder->pending_error = ret;
-
+			coder->pending_error = ret;
 			coder->sequence = SEQ_ERROR;
 			break;
 		}
@@ -1416,10 +1511,11 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 
 		// Read output from the output queue. Just like in
 		// SEQ_BLOCK_HEADER, we wait to fill the output buffer
-		// only if lzma_code() was called without providing any input.
+		// only if waiting_allowed was set to true in the beginning
+		// of this function (see the comment there).
 		return_if_error(read_output_and_wait(coder, allocator,
 				out, out_pos, out_size,
-				NULL, in_start == in_size,
+				NULL, waiting_allowed,
 				&wait_abs, &has_blocked));
 
 		if (coder->pending_error != LZMA_OK) {
@@ -1626,23 +1722,28 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 		break;
 
 	case SEQ_ERROR:
-		// Let the application get all data before the point where
-		// the error was detected. This matches the behavior of
-		// single-threaded use.
-		//
-		// FIXME? Some errors (LZMA_MEM_ERROR) don't get here,
-		// they are returned immediately. Thus in rare cases the
-		// output will be less than in single-threaded mode. But
-		// maybe this doesn't matter much in practice.
-		return_if_error(read_output_and_wait(coder, allocator,
-				out, out_pos, out_size,
-				NULL, true, &wait_abs, &has_blocked));
+		if (!coder->fail_fast) {
+			// Let the application get all data before the point
+			// where the error was detected. This matches the
+			// behavior of single-threaded use.
+			//
+			// FIXME? Some errors (LZMA_MEM_ERROR) don't get here,
+			// they are returned immediately. Thus in rare cases
+			// the output will be less than in the single-threaded
+			// mode. Maybe this doesn't matter much in practice.
+			return_if_error(read_output_and_wait(coder, allocator,
+					out, out_pos, out_size,
+					NULL, true, &wait_abs, &has_blocked));
 
-		// We get here only if the error happened in the main thread,
-		// for example, unsupported Block Header.
-		if (!lzma_outq_is_empty(&coder->outq))
-			return LZMA_OK;
+			// We get here only if the error happened in the main
+			// thread, for example, unsupported Block Header.
+			if (!lzma_outq_is_empty(&coder->outq))
+				return LZMA_OK;
+		}
 
+		// We only get here if no errors were detected by the worker
+		// threads. Errors from worker threads would have already been
+		// returned by the call to read_output_and_wait() above.
 		return coder->pending_error;
 
 	default:
@@ -1836,7 +1937,10 @@ stream_decoder_mt_init(lzma_next_coder *next, const lzma_allocator *allocator,
 	coder->tell_any_check = (options->flags & LZMA_TELL_ANY_CHECK) != 0;
 	coder->ignore_check = (options->flags & LZMA_IGNORE_CHECK) != 0;
 	coder->concatenated = (options->flags & LZMA_CONCATENATED) != 0;
+	coder->fail_fast = (options->flags & LZMA_FAIL_FAST) != 0;
+
 	coder->first_stream = true;
+	coder->out_was_filled = false;
 	coder->pos = 0;
 
 	coder->threads_max = options->threads;
