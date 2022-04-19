@@ -51,6 +51,9 @@ static lzma_check check;
 /// This becomes false if the --check=CHECK option is used.
 static bool check_default = true;
 
+/// Filter string to be converted to filters
+static char* filter_str = NULL;
+
 #ifdef MYTHREAD_ENABLED
 static lzma_mt mt_options = {
 	.flags = 0,
@@ -79,6 +82,8 @@ forget_filter_chain(void)
 		free(filters[filters_count].options);
 		filters[filters_count].options = NULL;
 	}
+
+	filter_str = NULL;
 
 	return;
 }
@@ -119,6 +124,20 @@ coder_add_filter(lzma_vli id, void *options)
 	// the default 6, making the example equivalent to "xz -6e".
 	preset_number = LZMA_PRESET_DEFAULT;
 
+	return;
+}
+
+
+extern void
+set_filter_str(char* str)
+{
+	// If any filters have already been specified, clear them
+	// and reset the filters_count
+	forget_filter_chain();
+	// Only setting the internal string to the input to avoid
+	// parsing the filter string if it will be overridden later
+	// and to delay validating the filter string
+	filter_str = str;
 	return;
 }
 
@@ -482,6 +501,16 @@ static enum coder_init_ret
 coder_init(file_pair *pair)
 {
 	lzma_ret ret = LZMA_PROG_ERROR;
+
+	if (filter_str != NULL) {
+		ret = lzma_str_to_filters(filters, NULL, filter_str);
+		if (ret != LZMA_OK){
+			message_error("%s: %s", pair->src_name,
+				_("Filter string could not be parsed\n"));
+			message_error("%s\n", filter_str);
+			return CODER_INIT_ERROR;
+		}
+	}
 
 	if (opt_mode == MODE_COMPRESS) {
 #ifdef HAVE_ENCODERS

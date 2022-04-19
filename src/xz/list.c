@@ -558,7 +558,9 @@ parse_block_header(file_pair *pair, const lzma_index_iter *iter,
 	}
 
 	// Convert the filter chain to human readable form.
-	message_filters_to_str(bhi->filter_chain, filters, false);
+	if (lzma_filters_to_str(filters, bhi->filter_chain,
+			FILTERS_STR_SIZE) != LZMA_OK)
+		strcpy(bhi->filter_chain, "UNKNOWN");
 
 	// Free the memory allocated by lzma_block_header_decode().
 	for (size_t i = 0; filters[i].id != LZMA_VLI_UNKNOWN; ++i)

@@ -64,6 +64,9 @@ extern void coder_set_extreme(void);
 /// Add a filter to the custom filter chain
 extern void coder_add_filter(lzma_vli id, void *options);
 
+/// Set the custom filter chain from a string
+extern void set_filter_str(char* str);
+
 ///
 extern void coder_set_compression_settings(void);
 

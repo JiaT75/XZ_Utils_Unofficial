@@ -148,7 +148,7 @@ parse_real(args_info *args, int argc, char **argv)
 	};
 
 	static const char short_opts[]
-			= "cC:defF:hHlkM:qQrS:tT:vVz0123456789";
+			= "cC:defF:hHlkM:qQrS:tT:vVz0123456789s:";
 
 	static const struct option long_opts[] = {
 		// Operation mode
@@ -199,6 +199,7 @@ parse_real(args_info *args, int argc, char **argv)
 		{ "armthumb",     optional_argument, NULL,  OPT_ARMTHUMB },
 		{ "sparc",        optional_argument, NULL,  OPT_SPARC },
 		{ "delta",        optional_argument, NULL,  OPT_DELTA },
+		{ "filters",      optional_argument, NULL,  's'},
 
 		// Other options
 		{ "quiet",        no_argument,       NULL,  'q' },
@@ -388,6 +389,10 @@ parse_real(args_info *args, int argc, char **argv)
 		case OPT_LZMA2:
 			coder_add_filter(LZMA_FILTER_LZMA2,
 					options_lzma(optarg));
+			break;
+
+		case 's':
+			set_filter_str(optarg);
 			break;
 
 		// Other

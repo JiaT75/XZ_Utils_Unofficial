@@ -90,7 +90,7 @@ extern const char *message_strm(lzma_ret code);
 extern void message_mem_needed(enum message_verbosity v, uint64_t memusage);
 
 
-/// Buffer size for message_filters_to_str()
+/// Buffer size for lzma_filters_to_str()
 #define FILTERS_STR_SIZE 512
 
 
