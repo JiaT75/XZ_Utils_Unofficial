@@ -12,7 +12,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "tests.h"
+#include "liblzma_tests.h"
 
 
 // These must be specified as numbers so that the test works on EBCDIC
@@ -24,65 +24,51 @@ static const uint8_t test_unaligned[12]
 		= { 120, 120, 120, 49, 50, 51, 52, 53, 54, 55, 56, 57 };
 
 
-static bool
+static void
 test_crc32(void)
 {
 	static const uint32_t test_vector = 0xCBF43926;
 
 	// Test 1
-	uint32_t crc = lzma_crc32(test_string, sizeof(test_string), 0);
-	if (crc != test_vector)
-		return true;
-
+	assert_int_equal(test_vector, lzma_crc32(test_string, sizeof(test_string), 0));
+	
 	// Test 2
-	crc = lzma_crc32(test_unaligned + 3, sizeof(test_string), 0);
-	if (crc != test_vector)
-		return true;
+	assert_int_equal(test_vector, lzma_crc32(test_unaligned + 3, sizeof(test_string), 0));
 
 	// Test 3
-	crc = 0;
+	uint32_t crc = 0;
 	for (size_t i = 0; i < sizeof(test_string); ++i)
 		crc = lzma_crc32(test_string + i, 1, crc);
-	if (crc != test_vector)
-		return true;
-
-	return false;
+	
+	assert_int_equal(test_vector, crc);
 }
 
 
-static bool
+static void
 test_crc64(void)
 {
 	static const uint64_t test_vector = 0x995DC9BBDF1939FA;
 
 	// Test 1
-	uint64_t crc = lzma_crc64(test_string, sizeof(test_string), 0);
-	if (crc != test_vector)
-		return true;
+	assert_ulong_equal(test_vector, lzma_crc64(test_string, sizeof(test_string), 0));
 
 	// Test 2
-	crc = lzma_crc64(test_unaligned + 3, sizeof(test_string), 0);
-	if (crc != test_vector)
-		return true;
+	assert_ulong_equal(test_vector, lzma_crc64(test_unaligned + 3, sizeof(test_string), 0));
 
 	// Test 3
-	crc = 0;
+	uint64_t crc = 0;
 	for (size_t i = 0; i < sizeof(test_string); ++i)
 		crc = lzma_crc64(test_string + i, 1, crc);
-	if (crc != test_vector)
-		return true;
 
-	return false;
+	assert_ulong_equal(test_vector, crc);
 }
 
 
-int
-main(void)
+void
+test_integrity_checks(void)
 {
-	bool error = false;
-
-	error |= test_crc32();
-	error |= test_crc64();
-
-	return error ? 1 : 0;
+	test_fixture_start();
+	run_test(test_crc32);
+	run_test(test_crc64);
+	test_fixture_end();
 }

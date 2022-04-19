@@ -12,7 +12,8 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "tests.h"
+#include "liblzma_tests.h"
+#include <stdbool.h>
 
 
 /// Something to be compressed
@@ -33,7 +34,7 @@ compress(void)
 	// it has fixed 4-byte alignment which makes triggering the potential
 	// bug easy.
 	lzma_options_lzma opt_lzma2;
-	succeed(lzma_lzma_preset(&opt_lzma2, 0));
+	assert_false(lzma_lzma_preset(&opt_lzma2, 1));
 
 	lzma_filter filters[3] = {
 		{ .id = LZMA_FILTER_POWERPC, .options = NULL },
@@ -41,10 +42,9 @@ compress(void)
 		{ .id = LZMA_VLI_UNKNOWN, .options = NULL },
 	};
 
-	expect(lzma_stream_buffer_encode(filters, LZMA_CHECK_CRC32, NULL,
+	assert_int_equal(lzma_stream_buffer_encode(filters, LZMA_CHECK_CRC32, NULL,
 			in, sizeof(in),
-			compressed, &compressed_size, sizeof(compressed))
-			== LZMA_OK);
+			compressed, &compressed_size, sizeof(compressed)), LZMA_OK);
 }
 
 
@@ -52,7 +52,7 @@ static void
 decompress(void)
 {
 	lzma_stream strm = LZMA_STREAM_INIT;
-	expect(lzma_stream_decoder(&strm, 10 << 20, 0) == LZMA_OK);
+	assert_int_equal(lzma_stream_decoder(&strm, 10 << 20, 0), LZMA_OK);
 
 	strm.next_in = compressed;
 	strm.next_out = out;
@@ -63,13 +63,13 @@ decompress(void)
 
 		const lzma_ret ret = lzma_code(&strm, LZMA_RUN);
 		if (ret == LZMA_STREAM_END) {
-			expect(strm.total_in == compressed_size);
-			expect(strm.total_out == sizeof(in));
+			assert_int_equal(strm.total_in, compressed_size);
+			assert_int_equal(strm.total_out, sizeof(in));
 			lzma_end(&strm);
 			return;
 		}
 
-		expect(ret == LZMA_OK);
+		assert_int_equal(ret, LZMA_OK);
 
 		if (strm.total_out < sizeof(in))
 			strm.avail_out = 1;
@@ -95,19 +95,19 @@ decompress_empty(void)
 	uint64_t memlimit = 1 << 20;
 	size_t in_pos = 0;
 	size_t out_pos = 0;
-	expect(lzma_stream_buffer_decode(&memlimit, 0, NULL,
+	assert_int_equal(lzma_stream_buffer_decode(&memlimit, 0, NULL,
 			empty_bcj_lzma2, &in_pos, sizeof(empty_bcj_lzma2),
-			out, &out_pos, 0) == LZMA_OK);
-	expect(in_pos == sizeof(empty_bcj_lzma2));
-	expect(out_pos == 0);
+			out, &out_pos, 0), LZMA_OK);
+	assert_int_equal(in_pos, sizeof(empty_bcj_lzma2));
+	assert_int_equal(out_pos, 0);
 }
 
-
-extern int
-main(void)
+void
+test_bcj_filter(void)
 {
-	compress();
-	decompress();
-	decompress_empty();
-	return 0;
+	test_fixture_start();
+	run_test(compress);
+	run_test(decompress);
+	run_test(decompress_empty);
+	test_fixture_end();
 }
