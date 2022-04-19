@@ -110,6 +110,8 @@ global:
 	lzma_microlzma_encoder;
 	lzma_file_info_decoder;
 	lzma_stream_decoder_mt;
+	lzma_filters_to_str;
+	lzma_str_to_filters;
 
 local:
 	*;

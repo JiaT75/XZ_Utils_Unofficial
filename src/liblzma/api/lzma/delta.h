@@ -26,6 +26,16 @@
 
 
 /**
+ * \brief       Delta filter name
+ *
+ * Filter name of the Delta filter. This is used with lzma_filters_to_str
+ * and lzma_str_to_filters to convert strings to filter chains and filter
+ * chains to strings.
+ */
+#define LZMA_FILTER_DELTA_NAME "delta"
+
+
+/**
  * \brief       Type of the delta calculation
  *
  * Currently only byte-wise delta is supported. Other possible types could
@@ -35,7 +45,7 @@
 typedef enum {
 	LZMA_DELTA_TYPE_BYTE
 } lzma_delta_type;
-
+#define LZMA_DELTA_TYPE_BYTE_STR "byte"
 
 /**
  * \brief       Options for the Delta filter
@@ -45,6 +55,7 @@ typedef enum {
 typedef struct {
 	/** For now, this must always be LZMA_DELTA_TYPE_BYTE. */
 	lzma_delta_type type;
+#	define LZMA_DELTA_TYPE_STR "type"
 
 	/**
 	 * \brief       Delta distance
@@ -59,6 +70,7 @@ typedef struct {
 	uint32_t dist;
 #	define LZMA_DELTA_DIST_MIN 1
 #	define LZMA_DELTA_DIST_MAX 256
+#	define LZMA_DELTA_DIST_STR "dist"
 
 	/*
 	 * Reserved space to allow possible future extensions without

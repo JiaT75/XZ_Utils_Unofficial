@@ -25,6 +25,40 @@
  */
 #define LZMA_FILTERS_MAX 4
 
+/**
+ * \brief       Character used to delimit different filters in a chain
+ *
+ * Used by lzma_filters_to_str and lzma_str_to_filters to delimit
+ * different filters so that whitespace is unnecessary to specify a filter
+ * chain using a string. This allows a filter chain provided to xz to not
+ * have to surround the filter chain in quotation marks.
+ */
+#define LZMA_FILTER_DELIMITER '+'
+
+/**
+ * \brief       Character used to delimit different options in a filter
+ *
+ * Used by lzma_filters_to_str and lzma_str_to_filters to delmit
+ * different options-value pairs for a filter.
+ */
+#define LZMA_FILTER_OPTION_DELIMITER ','
+
+/**
+ * \brief       Character used to delimit key from value for a filter option
+ *
+ * Used by lzma_filters_to_str and lzma_str_to_filters to delmit
+ * key-value pairs to set the options for a filter
+ */
+#define LZMA_FILTER_KEY_TO_VALUE_DELIMITER ':'
+
+/**
+ * \brief       Character used to indicate key-value pairs for filter options
+ *
+ * Used by lzma_filters_to_str and lzma_str_to_filters to indicate
+ * a list of key-value pairs will follow for a filter.
+ */
+#define LZMA_FILTER_OPTIONS_LIST_INDICATOR '='
+
 
 /**
  * \brief       Filter options
@@ -68,7 +102,7 @@ typedef struct {
 /**
  * \brief       Test if the given Filter ID is supported for encoding
  *
- * Return true if the give Filter ID is supported for encoding by this
+ * Return true if the given Filter ID is supported for encoding by this
  * liblzma build. Otherwise false is returned.
  *
  * There is no way to list which filters are available in this particular
@@ -424,3 +458,65 @@ extern LZMA_API(lzma_ret) lzma_filter_flags_decode(
 		lzma_filter *filter, const lzma_allocator *allocator,
 		const uint8_t *in, size_t *in_pos, size_t in_size)
 		lzma_nothrow lzma_attr_warn_unused_result;
+
+
+/**
+ * \brief       Convert filter chain to string
+ *
+ * Converts the input filter chain into a string. The output string
+ * will be compatible with lzma_str_to_filters. This function is useful
+ * for saving and restoring filter chains that are frequently used. It
+ * can also be helpful for debugging purposes.
+ *
+ * \param       filter      Array of filter IDs and options that must be
+ *                          terminated with the last filter ID being set to
+ *                          LZMA_VLI_UNKNOWN
+ * \param       out_str     Output string pre-allocated by the caller to hold
+ *                          the result of the string conversion
+ * \param       max_str_len The maximum buffer size. If the string cannot fit
+ *                          in the buffer provided, LZMA_BUF_ERROR will be
+ *                          returned.
+ *
+ * \return      - LZMA_OK
+ *              - LZMA_PROG_ERROR
+ * 		- LZMA_OPTIONS_ERROR
+ *
+ */
+extern LZMA_API(lzma_ret) lzma_filters_to_str(
+		const lzma_filter *filter, char* out_str, size_t max_str_len)
+		lzma_nothrow lzma_attr_warn_unused_result;
+
+
+/**
+ * \brief       Convert string to filter chain
+ *
+ * Converts the input string into an lzma_filter filter chain. The filer
+ * names must be provided in order of the chain. Between each filter the
+ * delimiter LZMA_FILTER_DELIMITER (+) must be used. If non-default options
+ * are desired, then the LZMA_FILTER_OPTIONS_LIST_INDICATOR (=) can be used
+ * after the name of each filter to specify a
+ * LZMA_FILTER_OPTION_DELIMITER (,) list of key:value option pairs.
+ * The valid key names are defined in macros in lzma12.h, delta.h, and bcj.h
+ * for each filter's respective options. Here is an example of a valid
+ * filter string:
+ * "delta=dist:8+lzma2=lc:0,lp:1,dict_size:4096K"
+ *
+ * \param       filter      Array of lzma_filters used as the destination
+ *                          of the filter chain
+ * \param       allocator   Custom memory allocator used to allocate the
+ *                          options. Set to NULL to use the default malloc(),
+ *                          and in case of an error, also free().
+ * \param       str         Input string to be converted to filter chain
+ *
+ * \return      - LZMA_OK
+ *              - LZMA_PROG_ERROR
+ *              - LZMA_MEM_ERROR
+ *
+ * \note        The options for each filter will be allocated by the
+ *              allocator provided (or default if left as NULL). The
+ *              options will be freed if there is an error, but otherwise
+ *              the caller must free the options.
+ */
+extern LZMA_API(lzma_ret) lzma_str_to_filters(
+		lzma_filter *filter, const lzma_allocator *allocator,
+		const char* str) lzma_nothrow lzma_attr_warn_unused_result;

@@ -29,6 +29,17 @@
  */
 #define LZMA_FILTER_LZMA1       LZMA_VLI_C(0x4000000000000001)
 
+
+/**
+ * \brief       LZMA1 filter name
+ *
+ * Filter name of the LZMA1 filter. This is used with lzma_filters_to_str
+ * and lzma_str_to_filters to convert strings to filter chains and filter
+ * chains to strings.
+ */
+#define LZMA_FILTER_LZMA1_NAME "lzma1"
+
+
 /**
  * \brief       LZMA2 Filter ID
  *
@@ -38,6 +49,16 @@
  * lc/lp/pb in the middle of encoding, and some other internal improvements.
  */
 #define LZMA_FILTER_LZMA2       LZMA_VLI_C(0x21)
+
+
+/**
+ * \brief       LZMA2 filter name
+ *
+ * Filter name of the LZMA2 filter. This is used with lzma_filters_to_str
+ * and lzma_str_to_filters to convert strings to filter chains and filter
+ * chains to strings.
+ */
+#define LZMA_FILTER_LZMA2_NAME "lzma2"
 
 
 /**
@@ -110,6 +131,11 @@ typedef enum {
 		 */
 } lzma_match_finder;
 
+#define LZMA_MF_HC3_STR "hc3"
+#define LZMA_MF_HC4_STR "hc4"
+#define LZMA_MF_BT2_STR "bt2"
+#define LZMA_MF_BT3_STR "bt3"
+#define LZMA_MF_BT4_STR "bt4"
 
 /**
  * \brief       Test if given match finder is supported
@@ -153,6 +179,10 @@ typedef enum {
 		 * full potential of the LZMA1 or LZMA2 encoder.
 		 */
 } lzma_mode;
+
+
+#define LZMA_MODE_FAST_STR   "fast"
+#define LZMA_MODE_NORMAL_STR "normal"
 
 
 /**
@@ -217,6 +247,7 @@ typedef struct {
 	uint32_t dict_size;
 #	define LZMA_DICT_SIZE_MIN       UINT32_C(4096)
 #	define LZMA_DICT_SIZE_DEFAULT   (UINT32_C(1) << 23)
+#	define LZMA_DICT_SIZE_STR       "dict_size"
 
 	/**
 	 * \brief       Pointer to an initial dictionary
@@ -282,6 +313,7 @@ typedef struct {
 #	define LZMA_LCLP_MIN    0
 #	define LZMA_LCLP_MAX    4
 #	define LZMA_LC_DEFAULT  3
+#	define LZMA_LC_STR      "lc"
 
 	/**
 	 * \brief       Number of literal position bits
@@ -292,6 +324,7 @@ typedef struct {
 	 */
 	uint32_t lp;
 #	define LZMA_LP_DEFAULT  0
+#	define LZMA_LP_STR      "lp"
 
 	/**
 	 * \brief       Number of position bits
@@ -317,9 +350,11 @@ typedef struct {
 #	define LZMA_PB_MIN      0
 #	define LZMA_PB_MAX      4
 #	define LZMA_PB_DEFAULT  2
+#	define LZMA_PB_STR      "pb"
 
 	/** Compression mode */
 	lzma_mode mode;
+#	define LZMA_MODE_STR    "mode"
 
 	/**
 	 * \brief       Nice length of a match
@@ -340,10 +375,11 @@ typedef struct {
 	 * LZMA2 can encode.
 	 */
 	uint32_t nice_len;
+#	define LZMA_NICE_LEN_STR "nice"
 
 	/** Match finder ID */
 	lzma_match_finder mf;
-
+#	define LZMA_MF_STR "mf"
 	/**
 	 * \brief       Maximum search depth in the match finder
 	 *
@@ -373,7 +409,7 @@ typedef struct {
 	 * dramatically, possibly creating a denial of service attack.
 	 */
 	uint32_t depth;
-
+#	define LZMA_DEPTH_STR "depth"
 	/*
 	 * Reserved space to allow possible future extensions without
 	 * breaking the ABI. You should not touch these, because the names

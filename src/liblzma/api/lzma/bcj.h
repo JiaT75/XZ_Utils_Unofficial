@@ -50,6 +50,36 @@
 	 */
 
 
+/* Filter names for lzma_filters_to_str and lzma_str_to_filters */
+
+#define LZMA_FILTER_X86_NAME "x86"
+	/**<
+	 * Filter name for x86 binaries
+	 */
+#define LZMA_FILTER_POWERPC_NAME "powerpc"
+	/**<
+	 * Filter name for Big endian PowerPC binaries
+	 */
+#define LZMA_FILTER_IA64_NAME "ia64"
+	/**<
+	 * Filter name for IA-64 (Itanium) binaries.
+	 */
+#define LZMA_FILTER_ARM_NAME "arm"
+	/**<
+	 * Filter name for ARM binaries.
+	 */
+#define LZMA_FILTER_ARMTHUMB_NAME "armthumb"
+	/**<
+	 * Filter name for ARM-Thumb binaries.
+	 */
+
+#define LZMA_FILTER_SPARC_NAME "sparc"
+	/**<
+	 * Filter name for SPARC binaries.
+	 */
+
+
+
 /**
  * \brief       Options for BCJ filters
  *
@@ -86,5 +116,6 @@ typedef struct {
 	 * is used.
 	 */
 	uint32_t start_offset;
+#	define LZMA_BCJ_START_OFFSET_STR "start_offset"
 
 } lzma_options_bcj;
