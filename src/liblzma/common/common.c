@@ -352,7 +352,6 @@ lzma_code(lzma_stream *strm, lzma_action action)
 
 	default:
 		// All the other errors are fatal; coding cannot be continued.
-		assert(ret != LZMA_BUF_ERROR);
 		strm->internal->sequence = ISEQ_ERROR;
 		break;
 	}

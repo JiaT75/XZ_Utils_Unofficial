@@ -118,7 +118,8 @@ stream_decode(void *coder_ptr, const lzma_allocator *allocator,
 
 		// Return if we didn't get the whole Stream Header yet.
 		if (coder->pos < LZMA_STREAM_HEADER_SIZE)
-			return LZMA_OK;
+			return action == LZMA_FINISH && *out_pos != out_size
+					? LZMA_BUF_ERROR : LZMA_OK;
 
 		coder->pos = 0;
 
@@ -161,7 +162,8 @@ stream_decode(void *coder_ptr, const lzma_allocator *allocator,
 
 	case SEQ_BLOCK_HEADER: {
 		if (*in_pos >= in_size)
-			return LZMA_OK;
+			return action == LZMA_FINISH && *out_pos != out_size
+					? LZMA_BUF_ERROR : LZMA_OK;
 
 		if (coder->pos == 0) {
 			// Detect if it's Index.
@@ -184,7 +186,8 @@ stream_decode(void *coder_ptr, const lzma_allocator *allocator,
 
 		// Return if we didn't get the whole Block Header yet.
 		if (coder->pos < coder->block_options.header_size)
-			return LZMA_OK;
+			return action == LZMA_FINISH && *out_pos != out_size
+					? LZMA_BUF_ERROR : LZMA_OK;
 
 		coder->pos = 0;
 
@@ -256,6 +259,10 @@ stream_decode(void *coder_ptr, const lzma_allocator *allocator,
 				in, in_pos, in_size, out, out_pos, out_size,
 				action);
 
+		if (ret == LZMA_OK)
+			return action == LZMA_FINISH && *out_pos != out_size
+					? LZMA_BUF_ERROR : LZMA_OK;
+
 		if (ret != LZMA_STREAM_END)
 			return ret;
 
@@ -275,7 +282,8 @@ stream_decode(void *coder_ptr, const lzma_allocator *allocator,
 		// lzma_index_hash_decode() since it would return
 		// LZMA_BUF_ERROR, which we must not do here.
 		if (*in_pos >= in_size)
-			return LZMA_OK;
+			return action == LZMA_FINISH && *out_pos != out_size
+					? LZMA_BUF_ERROR : LZMA_OK;
 
 		// Decode the Index and compare it to the hash calculated
 		// from the sizes of the Blocks (if any).
@@ -296,7 +304,8 @@ stream_decode(void *coder_ptr, const lzma_allocator *allocator,
 
 		// Return if we didn't get the whole Stream Footer yet.
 		if (coder->pos < LZMA_STREAM_HEADER_SIZE)
-			return LZMA_OK;
+			return action == LZMA_FINISH && *out_pos != out_size
+					? LZMA_BUF_ERROR : LZMA_OK;
 
 		coder->pos = 0;
 

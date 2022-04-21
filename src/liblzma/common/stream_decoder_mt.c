@@ -1053,7 +1053,8 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 
 		// Return if we didn't get the whole Stream Header yet.
 		if (coder->pos < LZMA_STREAM_HEADER_SIZE)
-			return LZMA_OK;
+			return action == LZMA_FINISH && *out_pos != out_size
+					? LZMA_BUF_ERROR : LZMA_OK;
 
 		coder->pos = 0;
 
@@ -1153,7 +1154,8 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 				break;
 			}
 
-			return LZMA_OK;
+			return action == LZMA_FINISH && *out_pos != out_size
+					? LZMA_BUF_ERROR : LZMA_OK;
 		}
 
 		if (ret == LZMA_INDEX_DETECTED) {
@@ -1513,7 +1515,8 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 		// Return if the input didn't contain the whole Block.
 		if (coder->thr->in_filled < coder->thr->in_size) {
 			assert(*in_pos == in_size);
-			return LZMA_OK;
+			return action == LZMA_FINISH && *out_pos != out_size
+					? LZMA_BUF_ERROR : LZMA_OK;
 		}
 
 		// The whole Block has been copied to the thread-specific
@@ -1577,6 +1580,10 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 		coder->progress_in += *in_pos - in_old;
 		coder->progress_out += *out_pos - out_old;
 
+		if (ret == LZMA_OK)
+			return action == LZMA_FINISH && *out_pos != out_size
+					? LZMA_BUF_ERROR : LZMA_OK;
+
 		if (ret != LZMA_STREAM_END)
 			return ret;
 
@@ -1610,7 +1617,8 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 		// lzma_index_hash_decode() since it would return
 		// LZMA_BUF_ERROR, which we must not do here.
 		if (*in_pos >= in_size)
-			return LZMA_OK;
+			return action == LZMA_FINISH && *out_pos != out_size
+					? LZMA_BUF_ERROR : LZMA_OK;
 
 		// Decode the Index and compare it to the hash calculated
 		// from the sizes of the Blocks (if any).
@@ -1635,7 +1643,8 @@ stream_decode_mt(void *coder_ptr, const lzma_allocator *allocator,
 
 		// Return if we didn't get the whole Stream Footer yet.
 		if (coder->pos < LZMA_STREAM_HEADER_SIZE)
-			return LZMA_OK;
+			return action == LZMA_FINISH && *out_pos != out_size
+					? LZMA_BUF_ERROR : LZMA_OK;
 
 		coder->pos = 0;
 
