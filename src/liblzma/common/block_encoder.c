@@ -218,6 +218,7 @@ lzma_block_encoder(lzma_stream *strm, lzma_block *block)
 
 	strm->internal->supported_actions[LZMA_RUN] = true;
 	strm->internal->supported_actions[LZMA_FINISH] = true;
+	strm->internal->supported_actions[LZMA_SYNC_FLUSH] = true;
 
 	return LZMA_OK;
 }
