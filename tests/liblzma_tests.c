@@ -17,7 +17,7 @@ static void
 all_tests(void)
 {
 	test_integrity_checks();
-	test_block_header_coders();
+	test_block_headers();
 	test_bcj_filter();
 	test_filter_flags();
 	test_lzma_index_structure();
@@ -26,6 +26,7 @@ all_tests(void)
 	test_lzma_raw();
 	test_lzma_properties();
 	test_mt_decoder();
+	test_block();
 }
 
 int

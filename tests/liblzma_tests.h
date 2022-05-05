@@ -17,7 +17,7 @@
 #include "stest.h"
 
 void test_integrity_checks(void);
-void test_block_header_coders(void);
+void test_block_headers(void);
 void test_bcj_filter(void);
 void test_filter_flags(void);
 void test_lzma_index_structure(void);
@@ -26,5 +26,6 @@ void test_lzma_filters(void);
 void test_lzma_raw(void);
 void test_lzma_properties(void);
 void test_mt_decoder(void);
+void test_block(void);
 
 #endif
