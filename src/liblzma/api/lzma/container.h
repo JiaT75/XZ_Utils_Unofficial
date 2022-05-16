@@ -388,8 +388,7 @@ extern LZMA_API(uint64_t) lzma_stream_encoder_mt_memusage(
  * lzma_stream_encoder() as a single function for multithreaded use.
  *
  * The supported actions for lzma_code() are LZMA_RUN, LZMA_FULL_FLUSH,
- * LZMA_FULL_BARRIER, and LZMA_FINISH. Support for LZMA_SYNC_FLUSH might be
- * added in the future.
+ * LZMA_FULL_BARRIER, LZMA_SYNC_FLUSH, and LZMA_FINISH.
  *
  * \param       strm    Pointer to properly prepared lzma_stream
  * \param       options Pointer to multithreaded compression options
@@ -399,6 +398,12 @@ extern LZMA_API(uint64_t) lzma_stream_encoder_mt_memusage(
  *              - LZMA_UNSUPPORTED_CHECK
  *              - LZMA_OPTIONS_ERROR
  *              - LZMA_PROG_ERROR
+ *
+ * \note        Calling lzma_code with LZMA_SYNC_FLUSH must be done with
+ *              caution. The overhead associated with LZMA_SYNC_FLUSH if
+ *              called too many times can fill up the worker threads
+ *              internal buffers and cause an error. Uncompressable data
+ *              is especially vulnerable to this.
  */
 extern LZMA_API(lzma_ret) lzma_stream_encoder_mt(
 		lzma_stream *strm, const lzma_mt *options)

@@ -16,6 +16,7 @@
 #include "block_buffer_encoder.h"
 #include "index_encoder.h"
 #include "outqueue.h"
+#include "check.h"
 
 
 /// Maximum supported block size. This makes it simpler to prevent integer
@@ -40,9 +41,25 @@ typedef enum {
 
 	/// The main thread wants the thread to exit. We could use
 	/// cancellation but since there's stopped anyway, this is lazier.
-	THR_EXIT,
-
+	THR_EXIT
 } worker_state;
+
+
+typedef enum {
+	/// Partial updates needed to make LZMA_SYNC_FLUSH work
+	/// are disabled.
+	SYNC_FLUSH_DISABLED,
+
+	/// Main thread requests partial updates to be enabled but
+	/// no partial update has been done by the worker thread yet.
+	SYNC_FLUSH_ENABLED,
+
+	/// The worker has written its progress out to its outbuf,
+	/// but the main thread has not yet read it
+	SYNC_FLUSH_DONE,
+
+} sync_flush_mode;
+
 
 typedef struct lzma_stream_coder_s lzma_stream_coder;
 
@@ -94,6 +111,8 @@ struct worker_thread_s {
 	/// The ID of this thread is used to join the thread
 	/// when it's not needed anymore.
 	mythread thread_id;
+
+	sync_flush_mode flush_mode;
 };
 
 
@@ -198,6 +217,20 @@ worker_error(worker_thread *thr, lzma_ret ret)
 }
 
 
+/// Enables updating of outbuf->pos to allow for LZMA_SYNC_FLUSH support.
+/// This is a callback function that is
+/// used with lzma_outq_enable_partial_output().
+/// This is different from the version used in stream_decoder_mt because
+/// this version does not need to lock because it is only ever called while
+/// holding the thread's mutex
+static void
+worker_enable_partial_update(void *thr_ptr)
+{
+	worker_thread *thr = thr_ptr;
+	thr->flush_mode = SYNC_FLUSH_ENABLED;
+}
+
+
 static worker_state
 worker_encode(worker_thread *thr, size_t *out_pos, worker_state state)
 {
@@ -236,6 +269,15 @@ worker_encode(worker_thread *thr, size_t *out_pos, worker_state state)
 
 	size_t in_pos = 0;
 	size_t in_size = 0;
+	sync_flush_mode flush_mode;
+	// The partial in position and partial out position trackers
+	// are used to track multiple LZMA_SYNC_FLUSH calls in the middle
+	// of a block when the data cannot be compressed.
+	// If the data can be compressed, only the outbuf position pointer
+	// needs to be updated. The partial position pointers are still
+	// updated in case data further in the block cannot be compressed
+	size_t partial_in_pos = 0;
+	size_t partial_out_pos = 0;
 
 	*out_pos = thr->block_options.header_size;
 	const size_t out_size = thr->outbuf->allocated;
@@ -253,23 +295,28 @@ worker_encode(worker_thread *thr, size_t *out_pos, worker_state state)
 			thr->progress_out = *out_pos;
 
 			while (in_size == thr->in_size
-					&& thr->state == THR_RUN)
+				&& thr->state == THR_RUN
+				&& thr->flush_mode != SYNC_FLUSH_ENABLED)
 				mythread_cond_wait(&thr->cond, &thr->mutex);
 
 			state = thr->state;
 			in_size = thr->in_size;
+			flush_mode = thr->flush_mode;
 		}
 
 		// Return if we were asked to stop or exit.
 		if (state >= THR_STOP)
 			return state;
 
-		lzma_action action = state == THR_FINISH
-				? LZMA_FINISH : LZMA_RUN;
+		lzma_action action = LZMA_RUN;
+		if (state == THR_FINISH)
+			action = LZMA_FINISH;
+		else if (flush_mode == SYNC_FLUSH_ENABLED)
+			action = LZMA_SYNC_FLUSH;
 
 		// Limit the amount of input given to the Block encoder
 		// at once. This way this thread can react fairly quickly
-		// if the main thread wants us to stop or exit.
+		// if the main thread wants us to stop, exit, or flush.
 		static const size_t in_chunk_max = 16384;
 		size_t in_limit = in_size;
 		if (in_size - in_pos > in_chunk_max) {
@@ -281,11 +328,79 @@ worker_encode(worker_thread *thr, size_t *out_pos, worker_state state)
 				thr->block_encoder.coder, thr->allocator,
 				thr->in, &in_pos, in_limit, thr->outbuf->buf,
 				out_pos, out_size, action);
-	} while (ret == LZMA_OK && *out_pos < out_size);
+
+		// If the sync flush does not result in stream end, then we
+		// must report an error here since the worker thread will
+		// not recieve more input / output space, so the result
+		// will never change and deadlock will occur
+		if (action == LZMA_SYNC_FLUSH && ret != LZMA_STREAM_END) {
+			worker_error(thr, LZMA_PROG_ERROR);
+			return THR_STOP;
+		}
+
+		// If the thread is told to finish, then there is no point
+		// in flushing any partial output
+		if (state != THR_FINISH && ret == LZMA_STREAM_END &&
+				flush_mode == SYNC_FLUSH_ENABLED) {
+			// Write out partial block
+			// Disable the sizes on the block header
+			// before writing out so that the partial sizes are
+			// not written to the output
+			thr->block_options.uncompressed_size =
+					LZMA_VLI_UNKNOWN;
+			thr->block_options.compressed_size =
+					LZMA_VLI_UNKNOWN;
+			ret = lzma_block_header_encode(&thr->block_options,
+					thr->outbuf->buf);
+
+			if (ret != LZMA_OK)
+				break;
+
+			// If data since last partial output was
+			// uncompressable, write partial block without
+			// headers
+			if ((in_pos - partial_in_pos) <
+					(*out_pos - partial_out_pos)) {
+				// Make space for block header
+				if (partial_out_pos == 0)
+					partial_out_pos =
+						thr->block_options.header_size;
+				// Overwrite contents of outbuf and
+				// adjust *out_pos to the new size.
+				// Encode from partial_in_pos in the
+				// input buffer to partial_out_pos
+				// in the output buffer
+				ret = lzma_encode_data_uncomp(
+						thr->in + partial_in_pos,
+						in_pos - partial_in_pos,
+						thr->outbuf->buf,
+						&partial_out_pos,
+						out_size);
+				// Update out position to partial output
+				// value since this should be less or equal
+				// to what it was before
+				*out_pos = partial_out_pos;
+			}
+
+			mythread_sync(thr->coder->mutex) {
+				// Signal main thread that output is ready
+				thr->outbuf->pos = *out_pos;
+				thr->flush_mode = SYNC_FLUSH_DONE;
+				mythread_cond_signal(&thr->coder->cond);
+			}
+			partial_out_pos = *out_pos;
+			partial_in_pos = in_pos;
+		}
+	} while (ret == LZMA_OK && (*out_pos < out_size || flush_mode == SYNC_FLUSH_ENABLED));
 
 	switch (ret) {
 	case LZMA_STREAM_END:
 		assert(state == THR_FINISH);
+
+		// No need to re-encode the block header if it has
+		// already been written out
+		if (partial_out_pos)
+			break;
 
 		// Encode the Block Header. By doing it after
 		// the compression, we can store the Compressed Size
@@ -302,7 +417,6 @@ worker_encode(worker_thread *thr, size_t *out_pos, worker_state state)
 	case LZMA_OK:
 		// The data was incompressible. Encode it using uncompressed
 		// LZMA2 chunks.
-		//
 		// First wait that we have gotten all the input.
 		mythread_sync(thr->mutex) {
 			while (thr->state == THR_RUN)
@@ -314,6 +428,65 @@ worker_encode(worker_thread *thr, size_t *out_pos, worker_state state)
 
 		if (state >= THR_STOP)
 			return state;
+
+		// If there has been a partial write already,
+		// then only the remaining part of the block
+		// will be attempted to be written to the block
+		// uncompressed (if the remaining part of the block
+		// can actually fit)
+		if (partial_out_pos && in_pos - partial_in_pos <
+				*out_pos - partial_out_pos) {
+			ret = lzma_encode_data_uncomp(thr->in,
+					partial_in_pos,
+					thr->outbuf->buf,
+					&partial_out_pos,
+					out_size);
+			if (ret != LZMA_OK) {
+				worker_error(thr, ret);
+				return THR_STOP;
+			}
+
+			*out_pos = partial_out_pos;
+
+			// Check for overflow
+			if (*out_pos > out_size)
+				worker_error(thr, LZMA_BUF_ERROR);
+
+			// Add end marker
+			thr->outbuf->buf[(*out_pos)++] = 0x00;
+
+			// Add padding
+			for (size_t i = *out_pos; i & 3; i++) {
+				if (*out_pos > out_size)
+					worker_error(thr, LZMA_BUF_ERROR);
+				thr->outbuf->buf[(*out_pos)++] = 0x00;
+			}
+
+			// Add check field
+			const size_t check_size = lzma_check_size(
+						thr->block_options.check);
+
+			if ((*out_pos + check_size) > out_size)
+				worker_error(thr, LZMA_BUF_ERROR);
+
+			if (check_size) {
+				lzma_check check_type =
+						thr->block_options.check;
+				lzma_check_state check;
+				lzma_check_init(&check, check_type);
+				lzma_check_update(&check, check_type,
+						thr->in, in_size);
+				lzma_check_finish(&check, check_type);
+
+				memcpy(thr->block_options.raw_check,
+						check.buffer.u8, check_size);
+				memcpy(thr->outbuf->buf + *out_pos,
+						check.buffer.u8, check_size);
+				*out_pos += check_size;
+			}
+
+			break;
+		}
 
 		// Do the encoding. This takes care of the Block Header too.
 		*out_pos = 0;
@@ -409,6 +582,7 @@ worker_start(void *thr_ptr)
 			// Return this thread to the stack of free threads.
 			thr->next = thr->coder->threads_free;
 			thr->coder->threads_free = thr;
+			thr->flush_mode = SYNC_FLUSH_DISABLED;
 
 			mythread_cond_signal(&thr->coder->cond);
 		}
@@ -498,6 +672,7 @@ initialize_new_thread(lzma_stream_coder *coder,
 	thr->progress_in = 0;
 	thr->progress_out = 0;
 	thr->block_encoder = LZMA_NEXT_CODER_INIT;
+	thr->flush_mode = SYNC_FLUSH_DISABLED;
 
 	if (mythread_create(&thr->thread_id, &worker_start, thr))
 		goto error_thread;
@@ -554,7 +729,8 @@ get_thread(lzma_stream_coder *coder, const lzma_allocator *allocator)
 	mythread_sync(coder->thr->mutex) {
 		coder->thr->state = THR_RUN;
 		coder->thr->in_size = 0;
-		coder->thr->outbuf = lzma_outq_get_buf(&coder->outq, NULL);
+		coder->thr->outbuf = lzma_outq_get_buf(&coder->outq,
+				coder->thr);
 		mythread_cond_signal(&coder->thr->cond);
 	}
 
@@ -585,10 +761,9 @@ stream_encode_in(lzma_stream_coder *coder, const lzma_allocator *allocator,
 		//  - it has got block_size bytes of input; or
 		//  - all input was used and LZMA_FINISH, LZMA_FULL_FLUSH,
 		//    or LZMA_FULL_BARRIER was used.
-		//
-		// TODO: LZMA_SYNC_FLUSH and LZMA_SYNC_BARRIER.
 		const bool finish = thr_in_size == coder->block_size
-				|| (*in_pos == in_size && action != LZMA_RUN);
+				|| (*in_pos == in_size && action != LZMA_RUN
+				&& action != LZMA_SYNC_FLUSH);
 
 		bool block_error = false;
 
@@ -605,6 +780,15 @@ stream_encode_in(lzma_stream_coder *coder, const lzma_allocator *allocator,
 
 				if (finish)
 					coder->thr->state = THR_FINISH;
+				else
+					coder->thr->state = THR_RUN;
+
+				// Mark the current thread to perform
+				// LZMA_SYNC_FLUSH action
+				if (action == LZMA_SYNC_FLUSH)
+					lzma_outq_enable_partial_output(
+						&coder->outq,
+						&worker_enable_partial_update);
 
 				mythread_cond_signal(&coder->thr->cond);
 			}
@@ -620,8 +804,15 @@ stream_encode_in(lzma_stream_coder *coder, const lzma_allocator *allocator,
 			return ret;
 		}
 
+		// If finish is true, move on to the next thread
+		// Otherwise, if LZMA_SYNC_FLUSH is requested then
+		// we do not need to keep iterating since we have
+		// marked the last thread to receive data to give a
+		// partial update
 		if (finish)
 			coder->thr = NULL;
+		else if (action == LZMA_SYNC_FLUSH)
+			break;
 	}
 
 	return LZMA_OK;
@@ -710,6 +901,10 @@ stream_encode_mt(void *coder_ptr, const lzma_allocator *allocator,
 		// These are for wait_for_work().
 		bool has_blocked = false;
 		mythread_condtime wait_abs;
+		// Flag to mark if we need to exit early because of
+		// LZMA_SYNC_FLUSH. Needed to avoid returning while
+		// still holding the coder mutex.
+		bool sync_exit = false;
 
 		while (true) {
 			mythread_sync(coder->mutex) {
@@ -725,7 +920,25 @@ stream_encode_mt(void *coder_ptr, const lzma_allocator *allocator,
 						out, out_pos, out_size,
 						&unpadded_size,
 						&uncompressed_size);
+				// If a sync flush was requested and the
+				// thread has written all of its output,
+				// mark the data as copied and return to
+				// the caller. Cannot return from inside
+				// this block because we still hold the
+				// mutex.
+				if (action == LZMA_SYNC_FLUSH &&
+						*in_pos == in_size &&
+						(coder->thr &&
+						coder->thr->flush_mode ==
+						SYNC_FLUSH_DONE)){
+					coder->thr->flush_mode =
+							SYNC_FLUSH_DISABLED;
+					sync_exit = true;
+				}
 			}
+
+			if (sync_exit)
+				return LZMA_STREAM_END;
 
 			if (ret == LZMA_STREAM_END) {
 				// End of Block. Add it to the Index.
@@ -759,8 +972,6 @@ stream_encode_mt(void *coder_ptr, const lzma_allocator *allocator,
 			}
 
 			// See if we should wait or return.
-			//
-			// TODO: LZMA_SYNC_FLUSH and LZMA_SYNC_BARRIER.
 			if (*in_pos == in_size) {
 				// LZMA_RUN: More data is probably coming
 				// so return to let the caller fill the
@@ -783,10 +994,11 @@ stream_encode_mt(void *coder_ptr, const lzma_allocator *allocator,
 					if (action == LZMA_FINISH)
 						break;
 
-					// LZMA_FULL_FLUSH: Return to tell
-					// the caller that flushing was
-					// completed.
-					if (action == LZMA_FULL_FLUSH)
+					// LZMA_FULL_FLUSH / LZMA_SYNC_FLUSH:
+					// Return to tell the caller that
+					// flushing was completed.
+					if (action == LZMA_FULL_FLUSH ||
+						action == LZMA_SYNC_FLUSH)
 						return LZMA_STREAM_END;
 				}
 			}
@@ -1102,7 +1314,7 @@ lzma_stream_encoder_mt(lzma_stream *strm, const lzma_mt *options)
 	lzma_next_strm_init(stream_encoder_mt_init, strm, options);
 
 	strm->internal->supported_actions[LZMA_RUN] = true;
-// 	strm->internal->supported_actions[LZMA_SYNC_FLUSH] = true;
+ 	strm->internal->supported_actions[LZMA_SYNC_FLUSH] = true;
 	strm->internal->supported_actions[LZMA_FULL_FLUSH] = true;
 	strm->internal->supported_actions[LZMA_FULL_BARRIER] = true;
 	strm->internal->supported_actions[LZMA_FINISH] = true;

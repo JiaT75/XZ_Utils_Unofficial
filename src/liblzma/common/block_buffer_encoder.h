@@ -21,4 +21,10 @@
 /// should have been 64-bit, but fixing it would break the ABI.
 extern uint64_t lzma_block_buffer_bound64(uint64_t uncompressed_size);
 
+/// Encodes block data as uncompressed lzma2 chunks
+/// Does not encode headers or end markers
+extern lzma_ret lzma_encode_data_uncomp(const uint8_t *in,
+ 		size_t in_size, uint8_t *out, size_t *out_pos,
+		size_t out_size);
+
 #endif

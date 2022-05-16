@@ -276,12 +276,8 @@ lzma_outq_enable_partial_output(lzma_outq *outq,
 		void (*enable_partial_output)(void *worker))
 {
 	if (outq->head != NULL && !outq->head->finished
-			&& outq->head->worker != NULL) {
+			&& outq->head->worker != NULL)
 		enable_partial_output(outq->head->worker);
-
-		// Set it to NULL since calling it twice is pointless.
-		outq->head->worker = NULL;
-	}
 
 	return;
 }

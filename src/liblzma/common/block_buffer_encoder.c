@@ -85,6 +85,42 @@ lzma_block_buffer_bound(size_t uncompressed_size)
 }
 
 
+extern lzma_ret
+lzma_encode_data_uncomp(const uint8_t *in, size_t in_size, uint8_t *out,
+		size_t *out_pos, size_t out_size)
+{
+	// Encode the data using LZMA2 uncompressed chunks.
+	size_t in_pos = 0;
+	uint8_t control = 0x01; // Dictionary reset
+
+	// Sanity check
+	if (in_size > (out_size - *out_pos))
+		return LZMA_BUF_ERROR;
+
+	while (in_pos < in_size) {
+		// Control byte: Indicate uncompressed chunk, of which
+		// the first resets the dictionary.
+		out[(*out_pos)++] = control;
+		control = 0x02; // No dictionary reset
+
+		// Size of the uncompressed chunk
+		const size_t copy_size
+				= my_min(in_size - in_pos, LZMA2_CHUNK_MAX);
+		out[(*out_pos)++] = (copy_size - 1) >> 8;
+		out[(*out_pos)++] = (copy_size - 1) & 0xFF;
+
+		// The actual data
+		assert(*out_pos + copy_size <= out_size);
+		memcpy(out + *out_pos, in + in_pos, copy_size);
+
+		in_pos += copy_size;
+		*out_pos += copy_size;
+	}
+
+	return LZMA_OK;
+}
+
+
 static lzma_ret
 block_encode_uncompressed(lzma_block *block, const uint8_t *in, size_t in_size,
 		uint8_t *out, size_t *out_pos, size_t out_size)
@@ -131,29 +167,8 @@ block_encode_uncompressed(lzma_block *block, const uint8_t *in, size_t in_size,
 	block->filters = filters_orig;
 	*out_pos += block->header_size;
 
-	// Encode the data using LZMA2 uncompressed chunks.
-	size_t in_pos = 0;
-	uint8_t control = 0x01; // Dictionary reset
-
-	while (in_pos < in_size) {
-		// Control byte: Indicate uncompressed chunk, of which
-		// the first resets the dictionary.
-		out[(*out_pos)++] = control;
-		control = 0x02; // No dictionary reset
-
-		// Size of the uncompressed chunk
-		const size_t copy_size
-				= my_min(in_size - in_pos, LZMA2_CHUNK_MAX);
-		out[(*out_pos)++] = (copy_size - 1) >> 8;
-		out[(*out_pos)++] = (copy_size - 1) & 0xFF;
-
-		// The actual data
-		assert(*out_pos + copy_size <= out_size);
-		memcpy(out + *out_pos, in + in_pos, copy_size);
-
-		in_pos += copy_size;
-		*out_pos += copy_size;
-	}
+	return_if_error(lzma_encode_data_uncomp(in, in_size, out, out_pos,
+			out_size));
 
 	// End marker
 	out[(*out_pos)++] = 0x00;
