@@ -26,5 +26,6 @@ void test_lzma_filters(void);
 void test_lzma_raw(void);
 void test_lzma_properties(void);
 void test_mt_decoder(void);
+void test_mt_encoder(void);
 
 #endif
