@@ -62,7 +62,7 @@ then
 	exit 1
 fi
 
-cd $rootdir
+cd "$rootdir"
 
 # Run autogen script if configure script has not been generated
 if ! test -f "configure"
@@ -71,30 +71,30 @@ then
 fi
 
 # Reconfigure the project with --enable-cov
-rm -rf $builddir
-mkdir -p $builddir
-cd $builddir
-./$rootdir/configure
+rm -rf "$builddir"
+mkdir -p "$builddir"
+cd "$builddir"
+"./$rootdir/configure"
 
 # Run the tests
 make check CFLAGS="$CFLAGS --coverage --no-inline -O0"
 
 # Re-create the coverage directory
-mkdir -p $rootdir/tests/coverage/liblzma
-mkdir -p $rootdir/tests/coverage/xz
+mkdir -p "$rootdir/tests/coverage/liblzma"
+mkdir -p "$rootdir/tests/coverage/xz"
 
 # Run lcov with src/liblzma/.libs as the input directory and write the
 # results out to coverage
-lcov -c -d src/liblzma/.libs -o $rootdir/tests/coverage/liblzma/liblzma.cov
-lcov -c -d src/xz/ -o $rootdir/tests/coverage/xz/xz.cov
+lcov -c -d "src/liblzma/.libs" -o "$rootdir/tests/coverage/liblzma/liblzma.cov"
+lcov -c -d "src/xz/" -o "$rootdir/tests/coverage/xz/xz.cov"
 
 # Generate the reports
-genhtml $rootdir/tests/coverage/liblzma/liblzma.cov -o $rootdir/tests/coverage/liblzma
-genhtml $rootdir/tests/coverage/xz/xz.cov -o $rootdir/tests/coverage/xz
+genhtml "$rootdir/tests/coverage/liblzma/liblzma.cov" -o "$rootdir/tests/coverage/liblzma"
+genhtml "$rootdir/tests/coverage/xz/xz.cov" -o "$rootdir/tests/coverage/xz"
 
 # Clean up build directory
-cd $rootdir
-rm -rf $builddir
+cd "$rootdir"
+rm -rf "$builddir"
 
 echo "Success! Output generated to tests/coverage/liblzma/index.html and"\
 	"tests/coverage/xz/index.html"
