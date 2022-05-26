@@ -56,6 +56,7 @@ build-aux/test-driver
 /tests/xzgrep_test_1.xz
 /tests/xzgrep_test_2.xz
 /tests/xzgrep_test_output
+/tests/coverage
 
 /lib/Makefile
 /tests/Makefile
