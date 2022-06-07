@@ -64,6 +64,11 @@ fi
 
 cd "$rootdir"
 
+if test -f "Makefile"
+then
+	make distclean
+fi
+
 # Run autogen script if configure script has not been generated
 if ! test -f "configure"
 then
