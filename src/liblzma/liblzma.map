@@ -111,6 +111,7 @@ global:
 	lzma_file_info_decoder;
 	lzma_raw_decoder_uncompressed;
 	lzma_raw_encoder_set_out_limit;
+	lzma_stream_decoder_mt;
 
 local:
 	*;

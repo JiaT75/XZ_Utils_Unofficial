@@ -67,14 +67,15 @@
 #define LZMA_FILTER_RESERVED_START (LZMA_VLI_C(1) << 62)
 
 
-/// Supported flags that can be passed to lzma_stream_decoder()
-/// or lzma_auto_decoder().
+/// Supported flags that can be passed to lzma_stream_decoder(),
+/// lzma_auto_decoder(), or lzma_stream_decoder_mt().
 #define LZMA_SUPPORTED_FLAGS \
 	( LZMA_TELL_NO_CHECK \
 	| LZMA_TELL_UNSUPPORTED_CHECK \
 	| LZMA_TELL_ANY_CHECK \
 	| LZMA_IGNORE_CHECK \
-	| LZMA_CONCATENATED )
+	| LZMA_CONCATENATED \
+	| LZMA_FAIL_FAST )
 
 
 /// Largest valid lzma_action value as unsigned integer.
@@ -85,6 +86,10 @@
 /// and lzma_code() must not return LZMA_BUF_ERROR. This is converted to
 /// LZMA_OK in lzma_code().
 #define LZMA_TIMED_OUT LZMA_RET_INTERNAL1
+
+/// Special return value (lzma_ret) for use in stream_decoder_mt.c to
+/// indicate Index was detected instead of a Block Header.
+#define LZMA_INDEX_DETECTED LZMA_RET_INTERNAL2
 
 
 typedef struct lzma_next_coder_s lzma_next_coder;
