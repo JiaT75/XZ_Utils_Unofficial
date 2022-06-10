@@ -215,8 +215,7 @@ extern LZMA_API(lzma_ret) lzma_raw_decoder(
  *              - LZMA_PROG_ERROR
  *              - LZMA_OPTIONS_ERROR
  */
-extern LZMA_API(lzma_ret) lzma_raw_decoder_uncompressed(
-		lzma_stream *strm,
+extern LZMA_API(lzma_ret) lzma_raw_decoder_uncompressed(lzma_stream *strm,
 		lzma_vli uncompressed_size) lzma_nothrow;
 
 
@@ -234,8 +233,7 @@ extern LZMA_API(lzma_ret) lzma_raw_decoder_uncompressed(
  * \param       out_limit      Maximum size of compressed data
  *
  */
-extern LZMA_API(lzma_ret) lzma_raw_encoder_set_out_limit(
-		lzma_stream *strm,
+extern LZMA_API(lzma_ret) lzma_raw_encoder_set_out_limit(lzma_stream *strm,
 		uint64_t *uncomp_size,
 		uint64_t out_limit) lzma_nothrow;
 
