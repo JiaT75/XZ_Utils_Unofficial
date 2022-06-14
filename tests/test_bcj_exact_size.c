@@ -12,29 +12,27 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-#include "liblzma_tests.h"
-#include <stdbool.h>
-
-
-/// Something to be compressed
-static const uint8_t in[16] = "0123456789ABCDEF";
-
-/// in[] after compression
-static uint8_t compressed[1024];
-static size_t compressed_size = 0;
-
-/// Output buffer for decompressing compressed[]
-static uint8_t out[sizeof(in)];
+#include "tests.h"
 
 
 static void
-compress(void)
+test_exact_size(void)
 {
+	// Something to be compressed
+	const uint8_t in[16] = "0123456789ABCDEF";
+
+	// in[] after compression
+	uint8_t compressed[1024];
+	size_t compressed_size = 0;
+
+	// Output buffer for decompressing compressed[]
+	uint8_t out[sizeof(in)];
+
 	// Compress with PowerPC BCJ and LZMA2. PowerPC BCJ is used because
 	// it has fixed 4-byte alignment which makes triggering the potential
 	// bug easy.
 	lzma_options_lzma opt_lzma2;
-	assert_false(lzma_lzma_preset(&opt_lzma2, 1));
+	assert_false(lzma_lzma_preset(&opt_lzma2, 0));
 
 	lzma_filter filters[3] = {
 		{ .id = LZMA_FILTER_POWERPC, .options = NULL },
@@ -42,17 +40,16 @@ compress(void)
 		{ .id = LZMA_VLI_UNKNOWN, .options = NULL },
 	};
 
-	assert_int_equal(lzma_stream_buffer_encode(filters, LZMA_CHECK_CRC32, NULL,
+	assert_lzma_ret(lzma_stream_buffer_encode(
+			filters, LZMA_CHECK_CRC32, NULL,
 			in, sizeof(in),
-			compressed, &compressed_size, sizeof(compressed)), LZMA_OK);
-}
+			compressed, &compressed_size, sizeof(compressed)),
+		LZMA_OK);
 
-
-static void
-decompress(void)
-{
+	// Decompress so that we won't give more output space than
+	// the Stream will need.
 	lzma_stream strm = LZMA_STREAM_INIT;
-	assert_int_equal(lzma_stream_decoder(&strm, 10 << 20, 0), LZMA_OK);
+	assert_lzma_ret(lzma_stream_decoder(&strm, 10 << 20, 0), LZMA_OK);
 
 	strm.next_in = compressed;
 	strm.next_out = out;
@@ -63,13 +60,13 @@ decompress(void)
 
 		const lzma_ret ret = lzma_code(&strm, LZMA_RUN);
 		if (ret == LZMA_STREAM_END) {
-			assert_int_equal(strm.total_in, compressed_size);
-			assert_int_equal(strm.total_out, sizeof(in));
+			assert_uint_eq(strm.total_in, compressed_size);
+			assert_uint_eq(strm.total_out, sizeof(in));
 			lzma_end(&strm);
 			return;
 		}
 
-		assert_int_equal(ret, LZMA_OK);
+		assert_lzma_ret(ret, LZMA_OK);
 
 		if (strm.total_out < sizeof(in))
 			strm.avail_out = 1;
@@ -78,7 +75,7 @@ decompress(void)
 
 
 static void
-decompress_empty(void)
+test_empty_block(void)
 {
 	// An empty file with one Block using PowerPC BCJ and LZMA2.
 	static const uint8_t empty_bcj_lzma2[] = {
@@ -93,21 +90,31 @@ decompress_empty(void)
 
 	// Decompress without giving any output space.
 	uint64_t memlimit = 1 << 20;
+	uint8_t out[1];
 	size_t in_pos = 0;
 	size_t out_pos = 0;
-	assert_int_equal(lzma_stream_buffer_decode(&memlimit, 0, NULL,
+	assert_lzma_ret(lzma_stream_buffer_decode(&memlimit, 0, NULL,
 			empty_bcj_lzma2, &in_pos, sizeof(empty_bcj_lzma2),
-			out, &out_pos, 0), LZMA_OK);
-	assert_int_equal(in_pos, sizeof(empty_bcj_lzma2));
-	assert_int_equal(out_pos, 0);
+			out, &out_pos, 0),
+		LZMA_OK);
+	assert_uint_eq(in_pos, sizeof(empty_bcj_lzma2));
+	assert_uint_eq(out_pos, 0);
 }
 
-void
-test_bcj_filter(void)
+
+extern int
+main(int argc, char **argv)
 {
-	test_fixture_start();
-	run_test(compress);
-	run_test(decompress);
-	run_test(decompress_empty);
-	test_fixture_end();
+	tuktest_start(argc, argv);
+
+	if (!lzma_filter_encoder_is_supported(LZMA_FILTER_POWERPC)
+			|| !lzma_filter_decoder_is_supported(
+				LZMA_FILTER_POWERPC))
+		tuktest_early_skip("PowerPC BCJ encoder and/or decoder "
+				"is disabled");
+
+	tuktest_run(test_exact_size);
+	tuktest_run(test_empty_block);
+
+	return tuktest_end();
 }

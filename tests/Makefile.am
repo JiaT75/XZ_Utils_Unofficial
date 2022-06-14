@@ -12,8 +12,17 @@ stest_SOURCES = \
 EXTRA_DIST = \
 	files \
 	ossfuzz \
-	liblzma_tests.h \
-	xz_tests.h \
+	tuktest.h \
+	tests.h \
+	test_files.sh \
+	test_compress.sh \
+	test_compress_prepared_bcj_sparc \
+	test_compress_prepared_bcj_x86 \
+	test_compress_generated_abc \
+	test_compress_generated_random \
+	test_compress_generated_text \
+	test_scripts.sh \
+	bcj_test.c \
 	compress_prepared_bcj_sparc \
 	compress_prepared_bcj_x86 \
 	test_scripts.sh \
@@ -62,8 +71,18 @@ check_PROGRAMS = \
 	xz_tests
 
 TESTS = \
-	liblzma_tests \
-	xz_tests
+	test_check \
+	test_stream_flags \
+	test_filter_flags \
+	test_block_header \
+	test_index \
+	test_bcj_exact_size \
+	test_files.sh \
+	test_compress_prepared_bcj_sparc \
+	test_compress_prepared_bcj_x86 \
+	test_compress_generated_abc \
+	test_compress_generated_random \
+	test_compress_generated_text
 
 if COND_SCRIPTS
 TESTS += test_scripts.sh
