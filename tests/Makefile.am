@@ -39,19 +39,23 @@ LDADD += $(LTLIBINTL)
 check_PROGRAMS = \
 	create_compress_files \
 	test_check \
-	test_stream_flags \
-	test_filter_flags \
-	test_block_header \
-	test_index \
-	test_bcj_exact_size
-
-TESTS = \
-	test_check \
+	test_hardware \
 	test_stream_flags \
 	test_filter_flags \
 	test_block_header \
 	test_index \
 	test_bcj_exact_size \
+	test_vli
+
+TESTS = \
+	test_check \
+	test_hardware \
+	test_stream_flags \
+	test_filter_flags \
+	test_block_header \
+	test_index \
+	test_bcj_exact_size \
+	test_vli \
 	test_files.sh \
 	test_compress_prepared_bcj_sparc \
 	test_compress_prepared_bcj_x86 \

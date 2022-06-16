@@ -43,6 +43,8 @@ build-aux/test-driver
 /src/scripts/xzless
 /src/scripts/xzmore
 
+/tests/*.log
+/tests/*.trs
 /tests/compress_generated_abc
 /tests/compress_generated_random
 /tests/compress_generated_text
@@ -51,8 +53,10 @@ build-aux/test-driver
 /tests/test_block_header
 /tests/test_check
 /tests/test_filter_flags
+/tests/test_hardware
 /tests/test_index
 /tests/test_stream_flags
+/tests/test_vli
 /tests/xzgrep_test_1.xz
 /tests/xzgrep_test_2.xz
 /tests/xzgrep_test_output
