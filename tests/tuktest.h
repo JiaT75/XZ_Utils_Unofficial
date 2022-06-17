@@ -2,7 +2,7 @@
 //
 /// \file       tuktest.h
 /// \brief      Helper macros for writing simple test programs
-/// \version    2022-06-02
+/// \version    2022-06-16
 ///
 /// Some inspiration was taken from STest by Keith Nicholas.
 ///
@@ -88,11 +88,18 @@
 ///     (The assert_CONDITION() macros depend on setup code in tuktest_run()
 ///     and other use results in undefined behavior.)
 ///
-///   - The tuktest_* functions and macros macros must not be used in
-///     the tests called via tuktest_run()!
+///   - tuktest_start(), tuktest_early_skip, tuktest_run(), and tuktest_end()
+///     must not be used in the tests called via tuktest_run()! (tuktest_end()
+///     is called more freely internally by this file but such use isn't part
+///     of the API.)
 ///
-///   - file_from_* functions and macros may be used anywhere after
-///     tuktest_start() has been called.
+///   - tuktest_error(), tuktest_malloc(), tuktest_free(),
+///     tuktest_file_from_srcdir(), and tuktest_file_from_builddir()
+///     can be used everywhere after tuktest_start() has been called.
+///     (In tests running under tuktest_run(), assert_error() can be used
+///     instead of tuktest_error() when a hard error occurs.)
+///
+///   - Everything else is for internal use only.
 ///
 /// Footnotes:
 ///
@@ -241,6 +248,22 @@ static const char *tuktest_name = NULL;
 static jmp_buf tuktest_jmpenv;
 
 
+// This declaration is needed for tuktest_malloc().
+static int tuktest_end(void);
+
+
+// Internal helper for handling hard errors both inside and
+// outside tuktest_run().
+#define tuktest_error_impl(filename, line, ...) \
+do { \
+	tuktest_print_result_prefix(TUKTEST_ERROR, filename, line); \
+	printf(__VA_ARGS__); \
+	printf("\n"); \
+	++tuktest_stats[TUKTEST_ERROR]; \
+	exit(tuktest_end()); \
+} while (0)
+
+
 // printf() is without checking its return value in many places. This function
 // is called before exiting to check the status of stdout and catch errors.
 static void
@@ -265,6 +288,137 @@ tuktest_basename(const char *filename)
 			return p + 1;
 
 	return filename;
+}
+
+
+// Internal helper that prints the prefix of the fail/skip/error message line.
+static void
+tuktest_print_result_prefix(enum tuktest_result result,
+		const char *filename, unsigned line)
+{
+	// This is never called with TUKTEST_PASS but I kept it here anyway.
+	const char *result_str
+			= result == TUKTEST_PASS ? TUKTEST_STR_PASS
+			: result == TUKTEST_FAIL ? TUKTEST_STR_FAIL
+			: result == TUKTEST_SKIP ? TUKTEST_STR_SKIP
+			: TUKTEST_STR_ERROR;
+
+	const char *short_filename = tuktest_basename(filename);
+
+	if (tuktest_name != NULL)
+		printf("%s %s [%s:%u] ", result_str, tuktest_name,
+				short_filename, line);
+	else
+		printf("%s [%s:%u] ", result_str, short_filename, line);
+}
+
+
+// An entry for linked list of memory allocations.
+struct tuktest_malloc_record {
+	struct tuktest_malloc_record *next;
+	void *p;
+};
+
+// Linked list of per-test allocations. This is used when under tuktest_run().
+// These allocations are freed in tuktest_run() and, in case of a hard error,
+// also in tuktest_end().
+static struct tuktest_malloc_record *tuktest_malloc_test = NULL;
+
+// Linked list of global allocations. This is used allocations are made
+// outside tuktest_run(). These are freed in tuktest_end().
+static struct tuktest_malloc_record *tuktest_malloc_global = NULL;
+
+
+/// A wrapper for malloc() that never return NULL and the allocated memory is
+/// automatically freed at the end of tuktest_run() (if allocation was done
+/// within a test) or early in tuktest_end() (if allocation was done outside
+/// tuktest_run()).
+///
+/// If allocation fails, a hard error is reported and this function won't
+/// return. Possible other tests won't be run (this will call exit()).
+#define tuktest_malloc(size) tuktest_malloc_impl(size, __FILE__, __LINE__)
+
+static void *
+tuktest_malloc_impl(size_t size, const char *filename, unsigned line)
+{
+	void *p = malloc(size);
+	struct tuktest_malloc_record *r = malloc(sizeof(*r));
+
+	if (p == NULL || r == NULL) {
+		free(r);
+		free(p);
+
+		// Avoid %zu for portability to very old systems that still
+		// can compile C99 code.
+		tuktest_error_impl(filename, line,
+				"tuktest_malloc(%" TUKTEST_PRIu ") failed",
+				(tuktest_uint)size);
+	}
+
+	r->p = p;
+
+	if (tuktest_name == NULL) {
+		// We were called outside tuktest_run().
+		r->next = tuktest_malloc_global;
+		tuktest_malloc_global = r;
+	} else {
+		// We were called under tuktest_run().
+		r->next = tuktest_malloc_test;
+		tuktest_malloc_test = r;
+	}
+
+	return p;
+}
+
+
+/// Frees memory allocated using tuktest_malloc(). Usually this isn't needed
+/// as the memory is freed automatically.
+///
+/// NULL is silently ignored.
+///
+/// NOTE: Under tuktest_run() only memory allocated there can be freed.
+/// That is,  allocations done outside tuktest_run() can only be freed
+/// outside tuktest_run().
+#define tuktest_free(ptr) tuktest_free_impl(ptr, __FILE__, __LINE__)
+
+static void
+tuktest_free_impl(void *p, const char *filename, unsigned line)
+{
+	if (p == NULL)
+		return;
+
+	struct tuktest_malloc_record **r = tuktest_name != NULL
+			? &tuktest_malloc_test : &tuktest_malloc_global;
+
+	while (*r != NULL) {
+		struct tuktest_malloc_record *tmp = *r;
+
+		if (tmp->p == p) {
+			*r = tmp->next;
+			free(p);
+			free(tmp);
+			return;
+		}
+
+		r = &tmp->next;
+	}
+
+	tuktest_error_impl(filename, line, "tuktest_free: "
+			"Allocation matching the pointer was not found");
+}
+
+
+// Frees all allocates in the given record list. The argument must be
+// either &tuktest_malloc_test or &tuktest_malloc_global.
+static void
+tuktest_free_all(struct tuktest_malloc_record **r)
+{
+	while (*r != NULL) {
+		struct tuktest_malloc_record *tmp = *r;
+		*r = tmp->next;
+		free(tmp->p);
+		free(tmp);
+	}
 }
 
 
@@ -317,18 +471,9 @@ do { \
 ///
 /// NOTE: tuktest_start() must have been called before tuktest_error().
 ///
-/// NOTE: This macro MUST NOT be called from test functions running under
-/// tuktest_run()! Use assert_error() to report a hard error in code that
-/// is running under tuktest_run().
-#define tuktest_error(...) \
-do { \
-	++tuktest_stats[TUKTEST_ERROR]; \
-	printf(TUKTEST_STR_ERROR " [%s:%u] ", \
-			tuktest_basename(__FILE__), __LINE__); \
-	printf(__VA_ARGS__); \
-	printf("\n"); \
-	exit(tuktest_end()); \
-} while (0)
+/// NOTE: This macro can be called from test functions running under
+/// tuktest_run() but assert_error() is somewhat preferred in that context.
+#define tuktest_error(...) tuktest_error_impl(__FILE__, __LINE__, __VA_ARGS__)
 
 
 /// At the end of main() one should have "return tuktest_end();" which
@@ -341,6 +486,9 @@ do { \
 static int
 tuktest_end(void)
 {
+	tuktest_free_all(&tuktest_malloc_test);
+	tuktest_free_all(&tuktest_malloc_global);
+
 	unsigned total_tests = 0;
 	for (unsigned i = 0; i <= TUKTEST_ERROR; ++i)
 		total_tests += tuktest_stats[i];
@@ -455,33 +603,12 @@ tuktest_run_test(void (*testfunc)(void), const char *testfunc_str)
 			exit(tuktest_end());
 	}
 
+	tuktest_free_all(&tuktest_malloc_test);
 	tuktest_name = NULL;
 }
 
 
-// Internal helper that prints the prefix of the fail/skip/error message line.
-static void
-tuktest_print_result_prefix(enum tuktest_result result,
-		const char *filename, unsigned line)
-{
-	// This is never called with TUKTEST_PASS but I kept it here anyway.
-	const char *result_str
-			= result == TUKTEST_PASS ? TUKTEST_STR_PASS
-			: result == TUKTEST_FAIL ? TUKTEST_STR_FAIL
-			: result == TUKTEST_SKIP ? TUKTEST_STR_SKIP
-			: TUKTEST_STR_ERROR;
-
-	const char *short_filename = tuktest_basename(filename);
-
-	if (tuktest_name != NULL)
-		printf("%s %s [%s:%u] ", result_str, tuktest_name,
-				short_filename, line);
-	else
-		printf("%s [%s:%u] ", result_str, short_filename, line);
-}
-
-
-// Maximum allowed file size in file_from_* macros and functions.
+// Maximum allowed file size in tuktest_file_from_* macros and functions.
 #ifndef TUKTEST_FILE_SIZE_MAX
 #	define TUKTEST_FILE_SIZE_MAX (64L << 20)
 #endif
@@ -489,7 +616,7 @@ tuktest_print_result_prefix(enum tuktest_result result,
 /// Allocates memory and reads the specified file into a buffer.
 /// If the environment variable srcdir is set, it will be prefixed
 /// to the filename. Otherwise the filename is used as is (and so
-/// the behavior is identical to file_from_builddir() below).
+/// the behavior is identical to tuktest_file_from_builddir() below).
 ///
 /// On success the a pointer to malloc'ed memory is returned.
 /// The size of the allocation and the file is stored in *size.
@@ -503,16 +630,17 @@ tuktest_print_result_prefix(enum tuktest_result result,
 /// This function can be called either from outside the tests (like in main())
 /// or from tests run via tuktest_run(). Remember to free() the memory to
 /// keep Valgrind happy.
-#define file_from_srcdir(filename, sizeptr) \
-	file_from_x(getenv("srcdir"), filename, sizeptr, __FILE__, __LINE__)
+#define tuktest_file_from_srcdir(filename, sizeptr) \
+	tuktest_file_from_x(getenv("srcdir"), filename, sizeptr, \
+			__FILE__, __LINE__)
 
-/// Like file_from_srcdir except this reads from the current directory.
-#define file_from_builddir(filename, sizeptr) \
-	file_from_x(NULL, filename, sizeptr, __FILE__, __LINE__)
+/// Like tuktest_file_from_srcdir except this reads from the current directory.
+#define tuktest_file_from_builddir(filename, sizeptr) \
+	tuktest_file_from_x(NULL, filename, sizeptr, __FILE__, __LINE__)
 
 // Internal helper for the macros above.
 static void *
-file_from_x(const char *prefix, const char *filename, size_t *size,
+tuktest_file_from_x(const char *prefix, const char *filename, size_t *size,
 		const char *prog_filename, unsigned prog_line)
 {
 	// If needed: buffer for holding prefix + '/' + filename + '\0'.
@@ -529,12 +657,13 @@ file_from_x(const char *prefix, const char *filename, size_t *size,
 
 	if (filename == NULL) {
 		error_msg = "Filename is NULL";
+		filename = "(NULL)";
 		goto error;
 	}
 
 	if (filename[0] == '\0') {
 		error_msg = "Filename is an empty string";
-		filename = NULL;
+		filename = "(empty string)";
 		goto error;
 	}
 
@@ -550,11 +679,8 @@ file_from_x(const char *prefix, const char *filename, size_t *size,
 
 		const size_t alloc_name_size
 				= prefix_len + 1 + filename_len + 1;
-		alloc_name = malloc(alloc_name_size);
-		if (alloc_name == NULL) {
-			error_msg = "Memory allocation failed (alloc_name)";
-			goto error;
-		}
+		alloc_name = tuktest_malloc_impl(alloc_name_size,
+				prog_filename, prog_line);
 
 		memcpy(alloc_name, prefix, prefix_len);
 		alloc_name[prefix_len] = '/';
@@ -602,11 +728,7 @@ file_from_x(const char *prefix, const char *filename, size_t *size,
 	*size = (size_t)end;
 	rewind(f);
 
-	buf = malloc(*size);
-	if (buf == NULL) {
-		error_msg = "Memory allocation failed (buf)";
-		goto error;
-	}
+	buf = tuktest_malloc_impl(*size, prog_filename, prog_line);
 
 	const size_t amount = fread(buf, 1, *size, f);
 	if (ferror(f)) {
@@ -626,25 +748,15 @@ file_from_x(const char *prefix, const char *filename, size_t *size,
 		goto error;
 	}
 
-	free(alloc_name);
+	tuktest_free(alloc_name);
 	return buf;
 
 error:
 	if (f != NULL)
 		(void)fclose(f);
 
-	tuktest_print_result_prefix(TUKTEST_ERROR, prog_filename, prog_line);
-
-	if (filename == NULL)
-		printf("file_from_x: %s\n", error_msg);
-	else
-		printf("file_from_x: %s: %s\n", filename, error_msg);
-
-	free(buf);
-	free(alloc_name);
-
-	++tuktest_stats[TUKTEST_ERROR];
-	exit(tuktest_end());
+	tuktest_error_impl(prog_filename, prog_line,
+			"tuktest_file_from_x: %s: %s\n", filename, error_msg);
 }
 
 
