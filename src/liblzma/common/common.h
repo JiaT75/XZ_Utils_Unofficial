@@ -30,7 +30,9 @@
 #	define LZMA_API_EXPORT
 #endif
 
-#define LZMA_API(type) LZMA_API_EXPORT type LZMA_API_CALL
+#ifndef LZMA_API
+#	define LZMA_API(type) LZMA_API_EXPORT type LZMA_API_CALL
+#endif
 
 #include "lzma.h"
 
