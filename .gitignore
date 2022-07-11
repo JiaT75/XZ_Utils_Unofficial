@@ -54,6 +54,7 @@ coverage
 /tests/compress_generated_text
 /tests/create_compress_files
 /tests/test_bcj_exact_size
+/tests/test_block
 /tests/test_block_header
 /tests/test_check
 /tests/test_filter_flags

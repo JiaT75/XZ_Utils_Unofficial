@@ -25,6 +25,8 @@ EXTRA_DIST = \
 
 AM_CPPFLAGS = \
 	-I$(top_srcdir)/src/common \
+	-I$(top_srcdir)/src/liblzma \
+	-I$(top_srcdir)/src/liblzma/common \
 	-I$(top_srcdir)/src/liblzma/api \
 	-I$(top_builddir)/lib
 
@@ -42,6 +44,7 @@ check_PROGRAMS = \
 	test_hardware \
 	test_stream_flags \
 	test_filter_flags \
+	test_block \
 	test_block_header \
 	test_index \
 	test_bcj_exact_size \
@@ -52,6 +55,7 @@ TESTS = \
 	test_hardware \
 	test_stream_flags \
 	test_filter_flags \
+	test_block \
 	test_block_header \
 	test_index \
 	test_bcj_exact_size \
