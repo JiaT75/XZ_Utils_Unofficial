@@ -76,6 +76,32 @@ static const char enum_strings_lzma_check[][24] = {
 	assert_enum_eq(test_expr, ref_val, enum_strings_lzma_check)
 
 
+typedef struct {
+	uint8_t *encoded;
+	uint8_t *decoded;
+	size_t encoded_size;
+	size_t decoded_size;
+} lzma_test_data;
+
+
+static inline lzma_test_data*
+prepare_lzma_test_data(const char *encoded_filename,
+		const char *decoded_filename)
+{
+	lzma_test_data *data = tuktest_malloc(sizeof(lzma_test_data));
+
+	if (encoded_filename != NULL)
+		data->encoded = tuktest_file_from_srcdir(encoded_filename,
+				&data->encoded_size);
+
+	if (decoded_filename != NULL)
+		data->decoded = tuktest_file_from_srcdir(decoded_filename,
+				&data->decoded_size);
+
+	return data;
+}
+
+
 static inline bool
 coder_loop(lzma_stream *strm, uint8_t *in, size_t in_size,
 		uint8_t *out, size_t out_size,
