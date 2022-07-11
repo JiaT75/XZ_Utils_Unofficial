@@ -24,6 +24,10 @@
     with the good files, these files must not require a lot of CPU time
     or RAM before they get detected to be broken.
 
+    Additional files and their *.xz compressed version are used in various
+    liblzma tests. If any changes are made to these files, the *.xz version
+    must be re-compressed too, or tests will fail.
+
 
 2. Descriptions of Individual Files
 
@@ -266,3 +270,8 @@
     Uncompressed Size bytes of output will have been produced but
     the LZMA2 decoder doesn't indicate end of stream.
 
+2.4 Additional Files
+
+    small_text.txt is Lorum Ipsum text generated on https://www.lipsum.com.
+    small_text.txt.xz is generated from small_text.txt with the following
+	command: xz -zk small_text.txt
