@@ -4,6 +4,7 @@
 /// \brief      Tests Stream Header and Stream Footer coders
 //
 //  Author:     Lasse Collin
+//              Jia Tan
 //
 //  This file has been put into the public domain.
 //  You can do whatever you want with this file.
@@ -12,169 +13,413 @@
 
 #include "tests.h"
 
+// Size of the Stream Flags field 
+// (taken from src/liblzma/common/stream_flags_common.h)
+#define LZMA_STREAM_FLAGS_SIZE 2
+// Header and footer magic bytes for .xz file format
+// (taken from src/liblzma/common/stream_flags_common.c)
+const uint8_t lzma_header_magic[6] = { 0xFD, 0x37, 0x7A, 0x58, 0x5A, 0x00 };
+const uint8_t lzma_footer_magic[2] = { 0x59, 0x5A };
 
-static lzma_stream_flags known_flags;
-static lzma_stream_flags decoded_flags;
-static uint8_t buffer[LZMA_STREAM_HEADER_SIZE];
-
-
-static bool
-validate(void)
+static void
+stream_header_encode_helper(lzma_check check)
 {
-	// TODO: This could require the specific error type as an argument.
-	// We could also test that lzma_stream_flags_compare() gives
-	// the correct return values in different situations.
-	return lzma_stream_flags_compare(&known_flags, &decoded_flags)
-			!= LZMA_OK;
-}
+	lzma_stream_flags flags = {
+		.version = LZMA_STREAM_FLAGS_VERSION,
+		.check = check
+	};
+	uint8_t header[LZMA_STREAM_HEADER_SIZE];
 
+	// Encode stream header
+	assert_lzma_ret(lzma_stream_header_encode(&flags, header), LZMA_OK);
 
-static bool
-test_header_decoder(lzma_ret expected_ret)
-{
-	memcrap(&decoded_flags, sizeof(decoded_flags));
+	// Stream header must start with magic bytes
+	const uint32_t magic_size = ARRAY_SIZE(lzma_header_magic);
+	assert_array_eq(header, lzma_header_magic, magic_size);
 
-	if (lzma_stream_header_decode(&decoded_flags, buffer) != expected_ret)
-		return true;
+	// Next must come stream flags
+	const uint8_t *encoded_stream_flags = header + magic_size;
+	// First byte is always NULL byte
+	// Second byte must be check ID
+	const uint8_t expected_stream_flags[] = { 0, check };
+	assert_array_eq(encoded_stream_flags, expected_stream_flags,
+			LZMA_STREAM_FLAGS_SIZE);
 
-	if (expected_ret != LZMA_OK)
-		return false;
-
-	// Header doesn't have Backward Size, so make
-	// lzma_stream_flags_compare() ignore it.
-	decoded_flags.backward_size = LZMA_VLI_UNKNOWN;
-	return validate();
+	// Last part is the CRC32 of the stream flags
+	const uint8_t* crc_ptr = encoded_stream_flags +
+			LZMA_STREAM_FLAGS_SIZE;
+	const uint32_t expected_crc = lzma_crc32(expected_stream_flags,
+			LZMA_STREAM_FLAGS_SIZE, 0);
+	assert_uint_eq(read32le(crc_ptr), expected_crc);
 }
 
 
 static void
-test_header(void)
+test_lzma_stream_header_encode(void)
 {
-	memcrap(buffer, sizeof(buffer));
-	expect(lzma_stream_header_encode(&known_flags, buffer) == LZMA_OK);
-	succeed(test_header_decoder(LZMA_OK));
-}
+	for (int i = 0; i < LZMA_CHECK_ID_MAX; i++)
+		stream_header_encode_helper(i);
 
+	lzma_stream_flags flags = {
+		.version = LZMA_STREAM_FLAGS_VERSION,
+		.check = LZMA_CHECK_CRC32
+	};
+	uint8_t header[LZMA_STREAM_HEADER_SIZE];
 
-static bool
-test_footer_decoder(lzma_ret expected_ret)
-{
-	memcrap(&decoded_flags, sizeof(decoded_flags));
+	// Should fail is version > LZMA_STREAM_FLAGS_VERSION
+	flags.version = LZMA_STREAM_FLAGS_VERSION + 1;
+	assert_lzma_ret(lzma_stream_header_encode(&flags, header),
+			LZMA_OPTIONS_ERROR);
+	flags.version = LZMA_STREAM_FLAGS_VERSION;
 
-	if (lzma_stream_footer_decode(&decoded_flags, buffer) != expected_ret)
-		return true;
+	// Should fail if check is invalid
+	flags.check = LZMA_CHECK_ID_MAX + 1;
+	assert_lzma_ret(lzma_stream_header_encode(&flags, header),
+			LZMA_PROG_ERROR);
+	flags.check = LZMA_CHECK_CRC32;
 
-	if (expected_ret != LZMA_OK)
-		return false;
-
-	return validate();
-}
-
-
-static void
-test_footer(void)
-{
-	memcrap(buffer, sizeof(buffer));
-	expect(lzma_stream_footer_encode(&known_flags, buffer) == LZMA_OK);
-	succeed(test_footer_decoder(LZMA_OK));
-}
-
-
-static void
-test_encode_invalid(void)
-{
-	known_flags.check = (lzma_check)(LZMA_CHECK_ID_MAX + 1);
-	known_flags.backward_size = 1024;
-
-	expect(lzma_stream_header_encode(&known_flags, buffer)
-			== LZMA_PROG_ERROR);
-
-	expect(lzma_stream_footer_encode(&known_flags, buffer)
-			== LZMA_PROG_ERROR);
-
-	known_flags.check = (lzma_check)(-1);
-
-	expect(lzma_stream_header_encode(&known_flags, buffer)
-			== LZMA_PROG_ERROR);
-
-	expect(lzma_stream_footer_encode(&known_flags, buffer)
-			== LZMA_PROG_ERROR);
-
-	known_flags.check = LZMA_CHECK_NONE;
-	known_flags.backward_size = 0;
-
-	// Header encoder ignores backward_size.
-	expect(lzma_stream_header_encode(&known_flags, buffer) == LZMA_OK);
-
-	expect(lzma_stream_footer_encode(&known_flags, buffer)
-			== LZMA_PROG_ERROR);
-
-	known_flags.backward_size = LZMA_VLI_MAX;
-
-	expect(lzma_stream_header_encode(&known_flags, buffer) == LZMA_OK);
-
-	expect(lzma_stream_footer_encode(&known_flags, buffer)
-			== LZMA_PROG_ERROR);
+	// Should pass even if backwards size is invalid
+	flags.backward_size = LZMA_VLI_MAX + 1;
+	assert_lzma_ret(lzma_stream_header_encode(&flags, header), LZMA_OK);
 }
 
 
 static void
-test_decode_invalid(void)
+stream_footer_encode_helper(lzma_check check)
 {
-	known_flags.check = LZMA_CHECK_NONE;
-	known_flags.backward_size = 1024;
+	lzma_stream_flags flags = {
+		.version = LZMA_STREAM_FLAGS_VERSION,
+		.check = check,
+		.backward_size = LZMA_BACKWARD_SIZE_MIN
+	};
+	uint8_t footer[LZMA_STREAM_HEADER_SIZE];
 
-	expect(lzma_stream_header_encode(&known_flags, buffer) == LZMA_OK);
+	// Encode stream footer
+	assert_lzma_ret(lzma_stream_footer_encode(&flags, footer), LZMA_OK);
 
-	// Test 1 (invalid Magic Bytes)
-	buffer[5] ^= 1;
-	succeed(test_header_decoder(LZMA_FORMAT_ERROR));
-	buffer[5] ^= 1;
+	// Stream footer must start with CRC32
+	const uint32_t crc = read32le(footer);
+	const uint32_t expected_crc = lzma_crc32(footer + sizeof(uint32_t),
+			LZMA_STREAM_HEADER_SIZE - (sizeof(uint32_t) +
+			ARRAY_SIZE(lzma_footer_magic)), 0);
+	assert_uint_eq(crc, expected_crc);
 
-	// Test 2a (valid CRC32)
-	uint32_t crc = lzma_crc32(buffer + 6, 2, 0);
-	write32le(buffer + 8, crc);
-	succeed(test_header_decoder(LZMA_OK));
+	// Next the backwards size
+	const uint32_t backwards_size = read32le(footer + sizeof(uint32_t));
+	const uint32_t expected_backwards_size = flags.backward_size / 4 - 1;
+	assert_uint_eq(backwards_size, expected_backwards_size);
+	// Next the stream flags
+	const uint8_t *stream_flags = footer + sizeof(uint32_t) * 2;
+	// First byte must be NULL
+	assert_uint_eq(stream_flags[0], 0);
+	// Second byte must be the check value
+	assert_uint_eq(stream_flags[1], check);
 
-	// Test 2b (invalid Stream Flags with valid CRC32)
-	buffer[6] ^= 0x20;
-	crc = lzma_crc32(buffer + 6, 2, 0);
-	write32le(buffer + 8, crc);
-	succeed(test_header_decoder(LZMA_OPTIONS_ERROR));
-
-	// Test 3 (invalid CRC32)
-	expect(lzma_stream_header_encode(&known_flags, buffer) == LZMA_OK);
-	buffer[9] ^= 1;
-	succeed(test_header_decoder(LZMA_DATA_ERROR));
-
-	// Test 4 (invalid Stream Flags with valid CRC32)
-	expect(lzma_stream_footer_encode(&known_flags, buffer) == LZMA_OK);
-	buffer[9] ^= 0x40;
-	crc = lzma_crc32(buffer + 4, 6, 0);
-	write32le(buffer, crc);
-	succeed(test_footer_decoder(LZMA_OPTIONS_ERROR));
-
-	// Test 5 (invalid Magic Bytes)
-	expect(lzma_stream_footer_encode(&known_flags, buffer) == LZMA_OK);
-	buffer[11] ^= 1;
-	succeed(test_footer_decoder(LZMA_FORMAT_ERROR));
+	// And ends with footer magic bytes
+	const uint8_t *expected_footer_magic = stream_flags +
+			LZMA_STREAM_FLAGS_SIZE;
+	assert_array_eq(expected_footer_magic, lzma_footer_magic,
+			ARRAY_SIZE(lzma_footer_magic));
 }
 
 
-int
-main(void)
+static void
+test_lzma_stream_footer_encode(void)
 {
-	// Valid headers
-	known_flags.backward_size = 1024;
-	for (lzma_check check = LZMA_CHECK_NONE;
-			check <= LZMA_CHECK_ID_MAX; ++check) {
-		test_header();
-		test_footer();
+	for (int i = 0; i < LZMA_CHECK_ID_MAX; i++)
+		stream_footer_encode_helper(i);
+
+	lzma_stream_flags flags = {
+		.version = LZMA_STREAM_FLAGS_VERSION,
+		.backward_size = LZMA_BACKWARD_SIZE_MIN,
+		.check = LZMA_CHECK_CRC32
+	};
+	uint8_t footer[LZMA_STREAM_HEADER_SIZE];
+
+	// Should fail is version > LZMA_STREAM_FLAGS_VERSION
+	flags.version = LZMA_STREAM_FLAGS_VERSION + 1;
+	assert_lzma_ret(lzma_stream_footer_encode(&flags, footer),
+			LZMA_OPTIONS_ERROR);
+	flags.version = LZMA_STREAM_FLAGS_VERSION;
+
+	// Should fail if check is invalid
+	flags.check = LZMA_CHECK_ID_MAX + 1;
+	assert_lzma_ret(lzma_stream_footer_encode(&flags, footer),
+			LZMA_PROG_ERROR);
+
+	// Should fail if backward size is invalid
+	flags.backward_size -= 1;
+	assert_lzma_ret(lzma_stream_footer_encode(&flags, footer),
+			LZMA_PROG_ERROR);
+	flags.backward_size += 2;
+	assert_lzma_ret(lzma_stream_footer_encode(&flags, footer),
+			LZMA_PROG_ERROR);
+	flags.backward_size = LZMA_BACKWARD_SIZE_MAX + 4;
+	assert_lzma_ret(lzma_stream_footer_encode(&flags, footer),
+			LZMA_PROG_ERROR);
+}
+
+
+static void
+stream_header_decode_helper(lzma_check check)
+{
+	lzma_stream_flags flags = {
+		.version = LZMA_STREAM_FLAGS_VERSION,
+		.check = check
+	};
+	uint8_t header[LZMA_STREAM_HEADER_SIZE];
+	assert_lzma_ret(lzma_stream_header_encode(&flags, header), LZMA_OK);
+
+	lzma_stream_flags dest_flags;
+	assert_lzma_ret(lzma_stream_header_decode(&dest_flags, header),
+			LZMA_OK);
+
+	// Version should be 0
+	assert_uint_eq(dest_flags.version, 0);
+	// backward size should be LZMA_VLI_UNKNOWN
+	assert_uint_eq(dest_flags.backward_size, LZMA_VLI_UNKNOWN);
+	// Check must equal parameter
+	assert_uint_eq(dest_flags.check, check);
+}
+
+
+static void
+test_lzma_stream_header_decode(void)
+{
+	for (int i = 0; i < LZMA_CHECK_ID_MAX; i++)
+		stream_header_decode_helper(i);
+
+	lzma_stream_flags flags = {
+		.version = LZMA_STREAM_FLAGS_VERSION,
+		.check = LZMA_CHECK_CRC32
+	};
+	uint8_t header[LZMA_STREAM_HEADER_SIZE];
+	lzma_stream_flags dest;
+
+	// First encode known flags to header buffer
+	assert_lzma_ret(lzma_stream_header_encode(&flags, header), LZMA_OK);
+
+	// Should fail if magic bytes do not match
+	header[0] ^= 1;
+	assert_lzma_ret(lzma_stream_header_decode(&dest, header),
+			LZMA_FORMAT_ERROR);
+	header[0] ^= 1;
+
+	// Should fail if reserved bits are set
+	uint8_t *stream_flags = header + ARRAY_SIZE(lzma_header_magic);
+	stream_flags[0] = 1;
+	// Need to adjust CRC32 after making a change since the CRC32
+	// is checked before the stream flags
+	uint32_t *crc32_ptr = (uint32_t*) (stream_flags +
+			LZMA_STREAM_FLAGS_SIZE);
+	const uint32_t crc_orig = *crc32_ptr;
+	*crc32_ptr = lzma_crc32(stream_flags, LZMA_STREAM_FLAGS_SIZE, 0);
+	assert_lzma_ret(lzma_stream_header_decode(&dest, header),
+			LZMA_OPTIONS_ERROR);
+	stream_flags[0] = 0;
+	*crc32_ptr = crc_orig;
+
+	// Should fail if upper bits of check ID are set
+	stream_flags[1] |= 0xF0;
+	*crc32_ptr = lzma_crc32(stream_flags, LZMA_STREAM_FLAGS_SIZE, 0);
+	assert_lzma_ret(lzma_stream_header_decode(&dest, header),
+			LZMA_OPTIONS_ERROR);
+	stream_flags[1] = flags.check;
+	*crc32_ptr = crc_orig;
+
+	// Should fail if CRC32 does not match
+	// First, alter a byte in the stream header
+	stream_flags[0] = 1;
+	assert_lzma_ret(lzma_stream_header_decode(&dest, header),
+			LZMA_DATA_ERROR);
+	stream_flags[0] = 0;
+	// Next, change the CRC32
+	*crc32_ptr ^= 1;
+	assert_lzma_ret(lzma_stream_header_decode(&dest, header),
+			LZMA_DATA_ERROR);
+}
+
+
+static void
+stream_footer_decode_helper(lzma_check check)
+{
+	lzma_stream_flags flags = {
+		.version = LZMA_STREAM_FLAGS_VERSION,
+		.backward_size = LZMA_BACKWARD_SIZE_MIN,
+		.check = check
+	};
+	uint8_t footer[LZMA_STREAM_HEADER_SIZE];
+	assert_lzma_ret(lzma_stream_footer_encode(&flags, footer), LZMA_OK);
+
+	lzma_stream_flags dest_flags;
+	assert_lzma_ret(lzma_stream_footer_decode(&dest_flags, footer),
+			LZMA_OK);
+
+	// Version should be 0
+	assert_uint_eq(dest_flags.version, 0);
+	// Backward size should equal the value from the flags
+	assert_uint_eq(dest_flags.backward_size, flags.backward_size);
+	// Check must equal parameter
+	assert_uint_eq(dest_flags.check, check);
+}
+
+
+static void
+test_lzma_stream_footer_decode(void)
+{
+	for (int i = 0; i < LZMA_CHECK_ID_MAX; i++)
+		stream_footer_decode_helper(i);
+
+	lzma_stream_flags flags = {
+		.version = LZMA_STREAM_FLAGS_VERSION,
+		.check = LZMA_CHECK_CRC32,
+		.backward_size = LZMA_BACKWARD_SIZE_MIN
+	};
+	uint8_t footer[LZMA_STREAM_HEADER_SIZE];
+	lzma_stream_flags dest;
+
+	// First encode known flags to footer buffer
+	assert_lzma_ret(lzma_stream_footer_encode(&flags, footer), LZMA_OK);
+
+	// Should fail if magic bytes do not match
+	footer[LZMA_STREAM_HEADER_SIZE - 1] ^= 1;
+	assert_lzma_ret(lzma_stream_footer_decode(&dest, footer),
+			LZMA_FORMAT_ERROR);
+	footer[LZMA_STREAM_HEADER_SIZE - 1] ^= 1;
+
+	// Should fail if reserved bits are set
+	// In the footer, the stream flags follow the CRC32 (4 bytes)
+	// and the backward size (4 bytes)
+	uint8_t *stream_flags = footer + sizeof(uint32_t) * 2;
+	stream_flags[0] = 1;
+	// Need to adjust the CRC32 so it will not fail that check instead
+	uint32_t *crc32_ptr = (uint32_t*) footer;
+	const uint32_t crc_orig = *crc32_ptr;
+	uint8_t *backward_size = footer + sizeof(uint32_t);
+	*crc32_ptr = lzma_crc32(backward_size, sizeof(uint32_t) +
+			LZMA_STREAM_FLAGS_SIZE, 0);
+	assert_lzma_ret(lzma_stream_footer_decode(&dest, footer),
+			LZMA_OPTIONS_ERROR);
+	stream_flags[0] = 0;
+	*crc32_ptr = crc_orig;
+
+	// Should fail if upper bits of check ID are set
+	stream_flags[1] |= 0xF0;
+	*crc32_ptr = lzma_crc32(backward_size, sizeof(uint32_t) +
+			LZMA_STREAM_FLAGS_SIZE, 0);
+	assert_lzma_ret(lzma_stream_footer_decode(&dest, footer),
+			LZMA_OPTIONS_ERROR);
+	stream_flags[1] = flags.check;
+	*crc32_ptr = crc_orig;
+
+	// Should fail if CRC32 does not match
+	// First, alter a byte in the stream footer
+	stream_flags[0] = 1;
+	assert_lzma_ret(lzma_stream_footer_decode(&dest, footer),
+			LZMA_DATA_ERROR);
+	stream_flags[0] = 0;
+	// Next, change the CRC32
+	*crc32_ptr ^= 1;
+	assert_lzma_ret(lzma_stream_footer_decode(&dest, footer),
+			LZMA_DATA_ERROR);
+}
+
+
+static void
+test_lzma_stream_flags_compare(void)
+{
+	lzma_stream_flags first = {
+		.version = 0,
+		.backward_size = LZMA_BACKWARD_SIZE_MIN,
+		.check = LZMA_CHECK_CRC32
+	};
+
+	lzma_stream_flags second = {
+		.version = 0,
+		.backward_size = LZMA_BACKWARD_SIZE_MIN,
+		.check = LZMA_CHECK_CRC32
+	};
+
+	// First test should pass
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second), LZMA_OK);
+
+	// Altering either version should cause an error
+	first.version = LZMA_STREAM_FLAGS_VERSION + 1;
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second),
+			LZMA_DATA_ERROR);
+	second.version = LZMA_STREAM_FLAGS_VERSION + 1;
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second),
+			LZMA_OPTIONS_ERROR);
+	first.version = 0;
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second),
+			LZMA_DATA_ERROR);
+	second.version = 0;
+
+	// Check types must be under the maximum
+	first.check = LZMA_CHECK_ID_MAX + 1;
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second),
+			LZMA_PROG_ERROR);
+	second.check = LZMA_CHECK_ID_MAX + 1;
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second),
+			LZMA_PROG_ERROR);
+	first.check = LZMA_CHECK_CRC32;
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second),
+			LZMA_PROG_ERROR);
+	second.check = LZMA_CHECK_CRC32;
+
+	// Check types must be equal
+	for (uint32_t i = 0; i < LZMA_CHECK_ID_MAX; i++) {
+		first.check = i;
+		if (i == second.check)
+			assert_lzma_ret(lzma_stream_flags_compare(&first,
+					&second), LZMA_OK);
+		else
+			assert_lzma_ret(lzma_stream_flags_compare(&first,
+					&second), LZMA_DATA_ERROR);
 	}
+	first.check = LZMA_CHECK_CRC32;
 
-	// Invalid headers
-	test_encode_invalid();
-	test_decode_invalid();
+	// Backward size comparison is skipped if either are LZMA_VLI_UNKNOWN
+	first.backward_size = LZMA_VLI_UNKNOWN;
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second), LZMA_OK);
+	second.backward_size = LZMA_VLI_MAX + 1;
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second), LZMA_OK);
+	second.backward_size = LZMA_BACKWARD_SIZE_MIN;
 
-	return 0;
+	// Backward sizes need to be valid
+	first.backward_size = LZMA_VLI_MAX + 4;
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second),
+			LZMA_PROG_ERROR);
+	second.backward_size = LZMA_VLI_MAX + 4;
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second),
+			LZMA_PROG_ERROR);
+	first.backward_size = LZMA_BACKWARD_SIZE_MIN;
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second),
+			LZMA_PROG_ERROR);
+	second.backward_size = LZMA_BACKWARD_SIZE_MIN;
+
+	// Backward sizes must be equal
+	second.backward_size = first.backward_size + 4;
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second),
+			LZMA_DATA_ERROR);
+
+	// Should fail if backward are > LZMA_BACKWARD_SIZE_MAX
+	// even though they are equal
+	first.backward_size = LZMA_BACKWARD_SIZE_MAX + 1;
+	second.backward_size = LZMA_BACKWARD_SIZE_MAX + 1;
+	assert_lzma_ret(lzma_stream_flags_compare(&first, &second),
+			LZMA_PROG_ERROR);
+}
+
+
+extern int
+main(int argc, char **argv)
+{
+	tuktest_start(argc, argv);
+	tuktest_run(test_lzma_stream_header_encode);
+	tuktest_run(test_lzma_stream_footer_encode);
+	tuktest_run(test_lzma_stream_header_decode);
+	tuktest_run(test_lzma_stream_footer_decode);
+	tuktest_run(test_lzma_stream_flags_compare);
+	return tuktest_end();
 }
