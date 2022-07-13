@@ -49,6 +49,7 @@ typedef struct {
 	 * the application will decode the Stream incorrectly.
 	 */
 	uint32_t version;
+#       define LZMA_STREAM_FLAGS_VERSION 0
 
 	/**
 	 * \brief       Backward Size
@@ -208,6 +209,9 @@ extern LZMA_API(lzma_ret) lzma_stream_footer_decode(
  *
  * backward_size values are compared only if both are not
  * LZMA_VLI_UNKNOWN.
+ *
+ * \param       a           lzma_stream_flag pointer for comparision
+ * \param       b           lzma_stream_flag pointer for comparision
  *
  * \return      - LZMA_OK: Both are equal. If either had backward_size set
  *                to LZMA_VLI_UNKNOWN, backward_size values were not

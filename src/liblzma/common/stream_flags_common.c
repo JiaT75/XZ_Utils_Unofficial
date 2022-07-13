@@ -21,8 +21,11 @@ extern LZMA_API(lzma_ret)
 lzma_stream_flags_compare(
 		const lzma_stream_flags *a, const lzma_stream_flags *b)
 {
-	// We can compare only version 0 structures.
-	if (a->version != 0 || b->version != 0)
+	// Both versions must match and be supported
+	if (a->version != b->version)
+		return LZMA_DATA_ERROR;
+
+	if (a->version > LZMA_STREAM_FLAGS_VERSION)
 		return LZMA_OPTIONS_ERROR;
 
 	// Check type
