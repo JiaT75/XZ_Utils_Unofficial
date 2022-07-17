@@ -37,8 +37,8 @@ typedef struct {
 	uint64_t (*block_size)(const void *options);
 
 	/// Tells the size of the Filter Properties field. If options are
-	/// invalid, UINT32_MAX is returned. If this is NULL, props_size_fixed
-	/// is used.
+	/// invalid, LZMA_OPTIONS_ERROR is returned and size is set to
+	/// UINT32_MAX. If this is NULL, props_size_fixed is used.
 	lzma_ret (*props_size_get)(uint32_t *size, const void *options);
 	uint32_t props_size_fixed;
 
