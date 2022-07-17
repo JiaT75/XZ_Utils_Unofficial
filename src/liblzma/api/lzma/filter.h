@@ -375,8 +375,9 @@ extern LZMA_API(lzma_ret) lzma_properties_decode(
  * \return      - LZMA_OK: *size set successfully. Note that this doesn't
  *                guarantee that filter->options is valid, thus
  *                lzma_filter_flags_encode() may still fail.
- *              - LZMA_OPTIONS_ERROR: Unknown Filter ID or unsupported options.
- *              - LZMA_PROG_ERROR: Invalid options
+ *              - LZMA_OPTIONS_ERROR: Unknown Filter ID
+ *              - LZMA_PROG_ERROR: Filter ID is in the implementation specifc
+ *                internal usage range or is not a valid lzma_vli
  *
  * \note        If you need to calculate size of List of Filter Flags,
  *              you need to loop over every lzma_filter entry.
@@ -415,10 +416,13 @@ extern LZMA_API(lzma_ret) lzma_filter_flags_encode(const lzma_filter *filter,
  * The decoded result is stored into *filter. The old value of
  * filter->options is not free()d.
  *
- * \return      - LZMA_OK
- *              - LZMA_OPTIONS_ERROR
- *              - LZMA_MEM_ERROR
- *              - LZMA_PROG_ERROR
+ * \return      - LZMA_OK: Decoding was successful.
+ *              - LZMA_DATA_ERROR: Filter ID is in the implementation specifc
+ *                internal usage range or not enough output buffer space
+ *              - LZMA_OPTIONS_ERROR: Invalid or unsupported options or
+ *                unsupported filter id.
+ *              - LZMA_MEM_ERROR: Could not allocate filter options.
+ *              - LZMA_PROG_ERROR: Invalid filter id vli or property size vli.
  */
 extern LZMA_API(lzma_ret) lzma_filter_flags_decode(
 		lzma_filter *filter, const lzma_allocator *allocator,
